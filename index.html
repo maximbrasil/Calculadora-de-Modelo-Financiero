@@ -6,9 +6,6 @@
   <title>Calculadora de Modelo Financeiro Brasil</title>
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
 <body>
   <div id="app" class="app-shell">
@@ -26,18 +23,25 @@
             <option value="en">EN</option>
           </select>
         </div>
-        <button id="changeCityBtn" class="btn secondary icon-btn" title="Change city" aria-label="Change city">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/>
-            <path d="M9 3v15"/>
-            <path d="M15 6v15"/>
-            <circle cx="15" cy="10" r="2.2"/>
-            <path d="M15 12.2c1.4-1.3 2.4-2.6 2.4-3.9A2.4 2.4 0 0 0 15 5.9a2.4 2.4 0 0 0-2.4 2.4c0 1.3 1 2.6 2.4 3.9z"/>
-          </svg>
-        </button>
-        <button id="exportPdf" class="btn secondary icon-btn" title="Export PDF" aria-label="Export PDF">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M9 14h6M9 17h4"/></svg>
-        </button>
+        <div class="top-action-pair" role="group" aria-label="Calculator controls">
+          <button id="parametersBtn" class="btn icon-btn parameters-trigger top-action-btn top-action-parameters" type="button" title="Parameters" aria-label="Parameters">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h10M18 7h2M4 17h2M10 17h10M8 4v6M16 14v6"/>
+              <circle cx="8" cy="7" r="2"/><circle cx="16" cy="17" r="2"/>
+            </svg>
+            <span class="top-action-label" data-i18n="parameters">Parameters</span>
+          </button>
+          <button id="changeCityBtn" class="btn icon-btn top-action-btn top-action-city" type="button" title="Change city" aria-label="Change city">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/>
+              <path d="M9 3v15"/>
+              <path d="M15 6v15"/>
+              <circle cx="15" cy="10" r="2.2"/>
+              <path d="M15 12.2c1.4-1.3 2.4-2.6 2.4-3.9A2.4 2.4 0 0 0 15 5.9a2.4 2.4 0 0 0-2.4 2.4c0 1.3 1 2.6 2.4 3.9z"/>
+            </svg>
+            <span class="top-action-label" data-i18n="changeCity">Change city</span>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -150,8 +154,14 @@
 
     <section id="mobileKpiScreen" class="mobile-screen mobile-calc-screen" data-mobile-page="kpi">
       <div class="mobile-screen-actions">
-        <button id="mobileChangeCityBtn" class="mobile-icon-action" type="button" aria-label="Change city">⌂</button>
-        <button id="mobileExportPdfBtn" class="mobile-icon-action" type="button" aria-label="Export PDF">⇩</button>
+        <button id="mobileParametersBtn" class="mobile-icon-action mobile-parameters-action mobile-action-pill mobile-action-parameters" type="button" aria-label="Parameters">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M8 4v6M16 14v6"/><circle cx="8" cy="7" r="2"/><circle cx="16" cy="17" r="2"/></svg>
+          <span class="mobile-action-label" data-i18n="parameters">Parameters</span>
+        </button>
+        <button id="mobileChangeCityBtn" class="mobile-icon-action mobile-action-pill mobile-action-city" type="button" aria-label="Change city">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/><circle cx="15" cy="10" r="2.2"/></svg>
+          <span class="mobile-action-label" data-i18n="changeCity">Change city</span>
+        </button>
       </div>
       <div id="mobileKpiContent" class="mobile-kpi-content"></div>
       <button class="mobile-arrow mobile-arrow-next" type="button" data-mobile-page-target="chart" aria-label="Next">↓</button>
@@ -209,6 +219,49 @@
 
   </section>
 
+  <div class="parameters-modal no-print" id="parametersModal" hidden aria-hidden="true">
+    <div class="parameters-modal-backdrop" data-close-parameters-modal></div>
+    <div class="parameters-modal-panel" role="dialog" aria-modal="true" aria-labelledby="parametersModalTitle">
+      <div class="parameters-modal-head">
+        <div>
+          <h2 id="parametersModalTitle" data-i18n="parameters">Parameters</h2>
+          <p data-i18n="parametersSubtitle">Adjust the assumptions for your scenario.</p>
+        </div>
+        <button class="parameters-modal-close" type="button" data-close-parameters-modal aria-label="Close">×</button>
+      </div>
+      <div class="parameters-modal-body">
+        <label class="recommended-toggle" for="recommendedValuesCheckbox">
+          <input id="recommendedValuesCheckbox" type="checkbox" checked />
+          <span>
+            <strong data-i18n="recommendedValues">Recommended values</strong>
+            <small data-i18n="recommendedValuesHint">Keep enabled to use the service recommendation for the selected city.</small>
+          </span>
+        </label>
+        <div class="parameters-fields" id="parametersFields">
+          <label class="parameters-field" for="annualInvestmentBudgetInput">
+            <span data-i18n="annualDirectInvestmentBudget">Annual marketing and development budget</span>
+            <div class="parameters-input-affix"><span>R$</span><input id="annualInvestmentBudgetInput" type="number" min="0" step="100" inputmode="decimal" /></div>
+            <small id="investmentBudgetAssessment" class="parameter-assessment" aria-live="polite"></small>
+          </label>
+          <label class="parameters-field" for="averageFareParameterInput">
+            <span data-i18n="averageFareParameter">Average ride price</span>
+            <div class="parameters-input-affix"><span>R$</span><input id="averageFareParameterInput" type="number" min="0.01" step="0.01" inputmode="decimal" /></div>
+          </label>
+          <label class="parameters-field" for="driverCommissionParameterInput">
+            <span data-i18n="driverCommissionParameter">Driver commission</span>
+            <div class="parameters-input-affix parameters-input-percent"><input id="driverCommissionParameterInput" type="number" min="0" max="50" step="0.1" inputmode="decimal" /><span>%</span></div>
+          </label>
+        </div>
+        <div id="parametersModelNote" class="parameters-model-note" data-i18n="parametersModelNote">Investment affects demand, completed orders and financial results. Recommended values are an indicative scenario and do not guarantee actual performance.</div>
+        <div id="parametersValidation" class="parameters-validation" role="alert" hidden></div>
+      </div>
+      <div class="parameters-modal-footer">
+        <button id="cancelParametersBtn" class="btn secondary" type="button" data-i18n="cancel">Cancel</button>
+        <button id="confirmParametersBtn" class="btn primary" type="button" data-i18n="confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <div class="chart-modal" id="chartModal" hidden aria-hidden="true">
     <div class="chart-modal-backdrop" data-close-chart-modal></div>
     <div class="chart-modal-panel" role="dialog" aria-modal="true" aria-labelledby="chartModalTitle">
@@ -233,7 +286,6 @@
   <script src="scenario-manager.js"></script>
   <script src="animation.js"></script>
   <script src="charts.js"></script>
-  <script src="export.js"></script>
   <script src="ui-renderer.js"></script>
   <script src="app.js"></script>
 </body>

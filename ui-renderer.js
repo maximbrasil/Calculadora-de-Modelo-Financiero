@@ -81,11 +81,11 @@ const UIRenderer=(()=>{
     const cityPopulation=city?fmtNum(city.population):fmtNum(model.assumptions?.population||0);
     const cityInitialPayment=city?money(city.initialPayment):money(model.assumptions?.initialInvestment||0);
     const avgSub=`${Localization.t('averageMonthlyInvestment')}: ${compactMoney(model.summary.averageMonthlyInvestment||0)}`;
-    const monthlyBreakEven=model.summary.breakEvenPeriod?`${Localization.t('month')} ${model.summary.breakEvenPeriod}`:'—';
+    const monthlyBreakEven=model.summary.breakEvenPeriod?`${Localization.t('month')} ${model.summary.breakEvenPeriod}`:Localization.t('notAchieved12');
     const cityCard=`<article class="kpi-card city-context-card"><div class="kpi-icon">${icon('city')}</div><div class="city-context-content"><div class="kpi-label">${Localization.t('selectedCity')}</div><div class="city-context-name">${cityName}</div><div class="city-context-meta"><span><strong>${Localization.t('populationHeader')}:</strong> ${cityPopulation} · <strong>${Localization.t('initialPaymentHeader')}:</strong> ${cityInitialPayment}</span></div></div></article>`;
     const items=[
       {k:'initialInvestment',color:'yellow',icon:icon('briefcase'),val:model.summary.totalInvestment,sub:avgSub,fmt:v=>compactMoney(v)},
-      {k:'breakEven',color:'green',icon:icon('target'),val:model.summary.paybackPeriod||0,sub:`${Localization.t('monthlyEquilibrium')}: ${monthlyBreakEven}`,fmt:v=>`${model.summary.paybackPeriod?Localization.t('month')+' '+Math.round(v):'—'}`},
+      {k:'breakEven',color:'green',icon:icon('target'),val:model.summary.paybackPeriod||0,sub:`${Localization.t('monthlyEquilibrium')}: ${monthlyBreakEven}`,fmt:v=>`${model.summary.paybackPeriod?Localization.t('month')+' '+Math.round(v):Localization.t('notAchieved12')}`},
       {k:'yearProfit',color:'blue',icon:icon('profit'),val:model.summary.netProfit,fmt:v=>compactMoney(v)},
       {k:'roi12',color:'purple',icon:icon('roi'),val:model.summary.roi,fmt:v=>`${Math.round(v)}%`}
     ];
@@ -96,17 +96,102 @@ const UIRenderer=(()=>{
   function renderSummary(model){
     const header=document.querySelector('.summary-card h3');
     if(header){header.innerHTML=`<span>${Localization.t('summary12')}</span>${infoTooltip(Localization.t('summary12Tooltip'),'summary-title-tooltip')}`;}
-    const rows=[['totalInvestment',model.summary.totalInvestment,'currency'],['totalPartnerRevenue',model.summary.totalPartnerRevenue,'currency'],['totalCommissionFromRides',model.summary.totalCommissionFromRides,'currency'],['totalOperatingExpenses',model.summary.totalExpenses,'currency'],['netProfit',model.summary.netProfit,'currency'],['roi12',model.summary.roi,'%'],['paybackPeriod',model.summary.paybackPeriod?Localization.t('month')+' '+model.summary.paybackPeriod:'—','']];
+    const rows=[['totalInvestment',model.summary.totalInvestment,'currency'],['totalPartnerRevenue',model.summary.totalPartnerRevenue,'currency'],['totalCommissionFromRides',model.summary.totalCommissionFromRides,'currency'],['totalOperatingExpenses',model.summary.totalExpenses,'currency'],['netProfit',model.summary.netProfit,'currency'],['roi12',model.summary.roi,'%'],['paybackPeriod',model.summary.paybackPeriod?Localization.t('month')+' '+model.summary.paybackPeriod:Localization.t('notAchieved12'),'']];
     document.getElementById('summaryList').innerHTML=rows.map(r=>{
       const cls=r[0]==='totalOperatingExpenses'?'summary-expense-row':(r[0]==='totalInvestment'?'summary-investment-row':'');
       const value=typeof r[1]==='number'?(r[2]==='%'?Math.round(r[1])+'%':money(r[1])):r[1];
       return `<div class="summary-row ${cls}"><span>${Localization.t(r[0])}</span><span>${value}</span></div>`;
     }).join('');
   }
+  function getInsightRows(model){
+    const a=model.assumptions||{};
+    const s=model.summary||{};
+    const recommendedBudget=Math.max(0,Number(s.recommendedMarketingBudget||a.recommendedMarketingBudget||0));
+    const budget=Math.max(0,Number(a.marketingBudget||0));
+    const budgetRatio=recommendedBudget>0?budget/recommendedBudget:0;
+    const budgetPercent=Math.round(budgetRatio*100);
+    const recommendedFare=Math.max(0.01,Number(a.recommendedAverageFare||FinancialEngine.recommendedAverageFareForPopulation(a.population)||1));
+    const fare=Math.max(0.01,Number(a.averageFare||recommendedFare));
+    const fareRatio=fare/recommendedFare;
+    const recommendedCommission=Number(a.recommendedCommission??FinancialEngine.recommendedCommissionForPopulation(a.population));
+    const commission=Number(a.commission||0);
+    const commissionDiff=commission-recommendedCommission;
+    const baseRides=Math.max(0,Number(s.baseTargetRidesDay||0));
+    const targetRides=Math.max(0,Number(s.targetRidesDay||0));
+    const demandRatio=baseRides>0?targetRides/baseRides:0;
+    const breakEvenMonth=s.breakEvenPeriod?`${Localization.t('month')} ${Math.round(s.breakEvenPeriod)}`:Localization.t('notAchieved12');
+    const paybackMonth=s.paybackPeriod?`${Localization.t('month')} ${Math.round(s.paybackPeriod)}`:Localization.t('notAchieved12');
+    const rows=[];
+
+    if(budget<=0){
+      rows.push({icon:'briefcase',tone:'danger',title:'budgetZeroTitle',text:'budgetZeroInsight',vars:{}});
+    }else if(budgetRatio<0.3){
+      rows.push({icon:'briefcase',tone:'danger',title:'budgetCriticalTitle',text:'budgetCriticalInsight',vars:{percent:budgetPercent,recommended:compactMoney(recommendedBudget)}});
+    }else if(budgetRatio<0.7){
+      rows.push({icon:'briefcase',tone:'warning',title:'budgetBelowTitle',text:'budgetBelowInsight',vars:{percent:budgetPercent,recommended:compactMoney(recommendedBudget)}});
+    }else if(budgetRatio<=1.3){
+      rows.push({icon:'briefcase',tone:'success',title:'budgetBalancedTitle',text:'budgetBalancedInsight',vars:{percent:budgetPercent,recommended:compactMoney(recommendedBudget)}});
+    }else{
+      rows.push({icon:'briefcase',tone:'warning',title:'budgetExcessTitle',text:'budgetExcessInsight',vars:{percent:budgetPercent,recommended:compactMoney(recommendedBudget)}});
+    }
+
+    if(targetRides<=Math.max(1,baseRides*0.05)){
+      rows.push({icon:'growth',tone:'danger',title:'noDemandGrowth',text:'noDemandGrowthText',vars:{}});
+    }else{
+      const constraints=[];
+      if(fareRatio>1.1)constraints.push(Localization.t('fareAboveRecommendation',{percent:Math.round((fareRatio-1)*100)}));
+      if(commissionDiff>3)constraints.push(Localization.t('commissionAboveRecommendation',{points:Math.round(commissionDiff*10)/10}));
+      const supports=[];
+      if(fareRatio<0.9)supports.push(Localization.t('fareBelowRecommendation',{percent:Math.round((1-fareRatio)*100)}));
+      if(commissionDiff<-3)supports.push(Localization.t('commissionBelowRecommendation',{points:Math.round(Math.abs(commissionDiff)*10)/10}));
+      const joiner=Localization.t('insightJoiner');
+      if(constraints.length){
+        rows.push({icon:'growth',tone:'warning',title:'parameterConstraintsTitle',text:'parameterConstraintsText',vars:{details:constraints.join(joiner),rides:Math.round(targetRides)}});
+      }else if(supports.length){
+        rows.push({icon:'growth',tone:'info',title:'demandSupportTitle',text:'demandSupportText',vars:{details:supports.join(joiner),rides:Math.round(targetRides)}});
+      }else if(demandRatio>1.1){
+        rows.push({icon:'growth',tone:'info',title:'marketCapacityTitle',text:'marketCapacityText',vars:{rides:Math.round(targetRides),base:Math.round(baseRides)}});
+      }else if(demandRatio>=0.85){
+        rows.push({icon:'growth',tone:'success',title:'balancedDemandTitle',text:'balancedDemandText',vars:{rides:Math.round(targetRides)}});
+      }else{
+        rows.push({icon:'growth',tone:'warning',title:'limitedDemandTitle',text:'limitedDemandText',vars:{rides:Math.round(targetRides),base:Math.round(baseRides)}});
+      }
+    }
+
+    if(s.netProfit<0){
+      rows.push({icon:'coin',tone:'danger',title:'negativeResult',text:'negativeResultText',vars:{profit:compactMoney(s.netProfit)}});
+    }else if(s.roi<20){
+      rows.push({icon:'coin',tone:'warning',title:'lowProfitability',text:'lowProfitabilityText',vars:{profit:compactMoney(s.netProfit),roi:Math.round(s.roi)+'%'}});
+    }else if(s.roi<60){
+      rows.push({icon:'coin',tone:'info',title:'moderateProfitability',text:'moderateProfitabilityText',vars:{profit:compactMoney(s.netProfit),roi:Math.round(s.roi)+'%'}});
+    }else{
+      rows.push({icon:'coin',tone:'success',title:'highProfitability',text:'profitText',vars:{profit:compactMoney(s.netProfit),roi:Math.round(s.roi)+'%'}});
+    }
+
+    if(s.paybackPeriod&&s.paybackPeriod<=6){
+      rows.push({icon:'balance',tone:'success',title:'rapidPayback',text:'rapidPaybackText',vars:{month:paybackMonth}});
+    }else if(s.paybackPeriod){
+      rows.push({icon:'balance',tone:'success',title:'paybackWithinYear',text:'cashText',vars:{month:paybackMonth}});
+    }else if(s.breakEvenPeriod){
+      rows.push({icon:'balance',tone:'warning',title:'operatingPositiveNoPayback',text:'operatingPositiveNoPaybackText',vars:{month:breakEvenMonth}});
+    }else{
+      rows.push({icon:'balance',tone:'danger',title:'noPayback',text:'noPaybackText',vars:{}});
+    }
+    return rows;
+  }
   function renderInsights(model){
-    const breakEvenMonth=model.summary.breakEvenPeriod?Localization.t('month')+' '+model.summary.breakEvenPeriod:'—';
-    const paybackMonth=model.summary.paybackPeriod?Localization.t('month')+' '+model.summary.paybackPeriod:'—';
-    document.getElementById('insightsList').innerHTML=[[icon('calendar'),'breakEvenMonth','breakEvenText',breakEvenMonth],[icon('growth'),'strongGrowth','strongGrowthText',breakEvenMonth],[icon('coin'),'highProfitability','profitText',breakEvenMonth],[icon('balance'),'positiveCashFlow','cashText',paybackMonth]].map(([ic,t,txt,month])=>`<div class="insight"><div class="insight-badge">${ic}</div><div><div class="insight-title">${Localization.t(t)}</div><div class="insight-text">${Localization.t(txt,{month,profit:compactMoney(model.summary.netProfit),roi:Math.round(model.summary.roi)+'%'})}</div></div></div>`).join('');
+    const rows=getInsightRows(model);
+    const list=document.getElementById('insightsList');
+    if(!list)return;
+    const renderedRows=rows.map(row=>({
+      ...row,
+      renderedTitle:Localization.t(row.title),
+      renderedText:Localization.t(row.text,row.vars||{})
+    }));
+    const totalLength=renderedRows.reduce((sum,row)=>sum+row.renderedTitle.length+row.renderedText.length,0);
+    const longestText=renderedRows.reduce((max,row)=>Math.max(max,row.renderedText.length),0);
+    list.dataset.density=(totalLength>760||longestText>250)?'very-dense':((totalLength>570||longestText>190)?'dense':'normal');
+    list.innerHTML=renderedRows.map(row=>`<div class="insight" data-tone="${row.tone||'neutral'}"><div class="insight-badge">${icon(row.icon)}</div><div><div class="insight-title">${row.renderedTitle}</div><div class="insight-text">${row.renderedText}</div></div></div>`).join('');
   }
   const basic=['marketingBudget'];
   function inputLabel(k){if(k==='averageFare')return Localization.t('averageRidePrice');if(k==='commission')return Localization.t('commissionFromCompletedRidesPct');if(k==='initialInvestment')return Localization.t('initialInvestmentInput');return Localization.t(k)}
@@ -129,7 +214,7 @@ const UIRenderer=(()=>{
     const list=Object.values(errors);if(panel){panel.hidden=!list.length;panel.innerHTML=list.join('<br>')}
   }
   function renderLegend(){const legendEl=document.getElementById('legendList');if(!legendEl)return;legendEl.innerHTML=`<div class="legend-list"><div class="legend-item"><span class="swatch investment"></span>${Localization.t('investmentLegend')}</div><div class="legend-item"><span class="swatch operations"></span>${Localization.t('operationsLegend')}</div><div class="legend-item"><span class="swatch revenue"></span>${Localization.t('revenueLegend')}</div><div class="legend-item"><span class="swatch expenses"></span>${Localization.t('expensesLegend')}</div><div class="legend-item"><span class="swatch profit"></span>${Localization.t('profitLegend')}</div></div>`}
-  function renderScenarioSelect(state){const sel=document.getElementById('scenarioSelect');if(!sel)return;sel.innerHTML=`<option value="base">Payback ≤ 7 months</option>`;sel.value='base';}
+  function renderScenarioSelect(state){const sel=document.getElementById('scenarioSelect');if(!sel)return;sel.innerHTML=`<option value="base">Reference demand scenario</option>`;sel.value='base';}
   function renderAll(state,model,errors={}){
     activeCurrency='R$';
     Localization.setLanguage(state.language);
@@ -147,5 +232,5 @@ const UIRenderer=(()=>{
     Charts.render(model);
     setTimeout(Animation.flashCells,10);
   }
-  return{renderAll,getTableRows,getDisplayMonths}
+  return{renderAll,getTableRows,getDisplayMonths,getInsightRows}
 })();

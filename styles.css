@@ -11211,3 +11211,614 @@ body.chart-modal-open{overflow:hidden!important;}
     pointer-events:none!important;
   }
 }
+
+/* Small App — editable initial investment */
+@media (max-width: 820px){
+  #mobileStartScreen .mobile-investment-field small{
+    color:#667085;
+    font-size:11px;
+    line-height:1.35;
+  }
+  #mobileStartScreen .mobile-money-input,
+  .mobile-kpi-investment-editor .mobile-money-input{
+    display:flex;
+    align-items:center;
+    min-height:50px;
+    border:1px solid #d5dee9;
+    border-radius:15px;
+    background:#fff;
+    overflow:hidden;
+  }
+  #mobileStartScreen .mobile-money-input > span,
+  .mobile-kpi-investment-editor .mobile-money-input > span{
+    align-self:stretch;
+    display:flex;
+    align-items:center;
+    padding:0 12px;
+    border-right:1px solid #e4e9f0;
+    background:#f7f9fc;
+    color:#173b63;
+    font-size:14px;
+    font-weight:900;
+  }
+  #mobileStartScreen .mobile-money-input input,
+  .mobile-kpi-investment-editor .mobile-money-input input{
+    min-width:0;
+    width:100%;
+    height:48px;
+    border:0;
+    outline:0;
+    padding:0 13px;
+    background:#fff;
+    color:#102033;
+    font:800 15px/1.2 inherit;
+    box-sizing:border-box;
+  }
+  #mobileStartScreen .mobile-money-input:focus-within,
+  .mobile-kpi-investment-editor .mobile-money-input:focus-within{
+    border-color:#173b63;
+    box-shadow:0 0 0 3px rgba(23,59,99,.10);
+  }
+  #mobileStartScreen .mobile-money-input:has(input:disabled){
+    background:#f8fafc;
+    opacity:.7;
+  }
+  .mobile-kpi-card.investment-editable{
+    align-items:flex-start;
+  }
+  .mobile-kpi-investment-editor{
+    display:grid;
+    gap:7px;
+    margin-top:12px;
+    padding-top:12px;
+    border-top:1px solid rgba(23,59,99,.12);
+  }
+  .mobile-kpi-investment-editor label{
+    color:#41516a;
+    font-size:10px;
+    font-weight:900;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+  }
+  .mobile-kpi-investment-controls{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:8px;
+    align-items:center;
+  }
+  .mobile-kpi-investment-editor .mobile-money-input.compact{
+    min-height:42px;
+    border-radius:12px;
+  }
+  .mobile-kpi-investment-editor .mobile-money-input.compact input{
+    height:40px;
+    padding:0 9px;
+    font-size:13px;
+  }
+  .mobile-kpi-investment-editor .mobile-money-input.compact > span{
+    padding:0 9px;
+    font-size:12px;
+  }
+  #mobileApplyInvestmentBtn{
+    min-height:42px;
+    border:1px solid #e6c700;
+    border-radius:12px;
+    padding:0 12px;
+    background:#ffdd00;
+    color:#000;
+    font-size:12px;
+    font-weight:900;
+    white-space:nowrap;
+    box-shadow:0 7px 16px rgba(0,0,0,.10);
+  }
+  #mobileApplyInvestmentBtn:active{
+    transform:translateY(1px);
+    background:#ffe642;
+  }
+}
+
+
+/* Scenario parameters modal: overlay only, so the dashboard dimensions never change. */
+.parameters-trigger svg,
+.mobile-parameters-action svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block}
+.parameters-modal[hidden]{display:none!important}
+.parameters-modal{position:fixed;inset:0;z-index:12000;display:grid;place-items:center;padding:20px}
+.parameters-modal-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.48);backdrop-filter:blur(2px)}
+.parameters-modal-panel{position:relative;width:min(500px,calc(100vw - 32px));max-height:calc(100svh - 32px);overflow:auto;background:#fff;border:1px solid #d8dee8;border-radius:14px;box-shadow:0 28px 80px rgba(15,23,42,.28)}
+.parameters-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:20px 22px 16px;border-bottom:1px solid #e6eaf0}
+.parameters-modal-head h2{margin:0 0 5px;font-size:20px;line-height:1.15}
+.parameters-modal-head p{margin:0;color:#667085;font-size:12px;line-height:1.45}
+.parameters-modal-close{width:32px;height:32px;border:0;border-radius:8px;background:#f5f7fa;color:#344054;font-size:24px;line-height:1;cursor:pointer}
+.parameters-modal-body{padding:18px 22px}
+.recommended-toggle{display:flex;align-items:flex-start;gap:11px;padding:13px 14px;border:1px solid #d9e4f2;border-radius:10px;background:#f7fbff;cursor:pointer}
+.recommended-toggle input{width:17px;height:17px;min-width:17px;margin:1px 0 0;padding:0;accent-color:#1663c7}
+.recommended-toggle span{display:flex;flex-direction:column;gap:4px}
+.recommended-toggle strong{font-size:13px;color:#172033}
+.recommended-toggle small{font-size:11px;line-height:1.45;color:#667085}
+.parameters-fields{display:grid;gap:13px;margin-top:16px;transition:opacity .16s ease}
+.parameters-fields.is-disabled{opacity:.58}
+.parameters-field{display:grid;gap:6px;font-weight:700;color:#344054}
+.parameters-field>span{font-size:12px}
+.parameters-input-affix{display:flex;align-items:center;height:40px;border:1px solid #d0d7e2;border-radius:9px;background:#fff;overflow:hidden}
+.parameters-input-affix>span{padding:0 11px;color:#667085;font-weight:700;border-right:1px solid #e3e7ed}
+.parameters-input-affix input{flex:1;min-width:0;height:100%;border:0;border-radius:0;padding:0 11px;font-size:14px;font-weight:700;outline:0;background:transparent}
+.parameters-input-affix:focus-within{border-color:#3677cf;box-shadow:0 0 0 3px rgba(54,119,207,.13)}
+.parameters-input-percent input{text-align:right}
+.parameters-input-percent>span{border-right:0;border-left:1px solid #e3e7ed}
+.parameters-validation{margin-top:13px;padding:10px 12px;border-radius:8px;background:#fff1f1;color:#a61e24;font-weight:700;line-height:1.4}
+.parameters-modal-footer{display:flex;justify-content:flex-end;gap:9px;padding:14px 22px 18px;border-top:1px solid #e6eaf0}
+.parameters-modal-footer .btn{min-width:104px}
+body.parameters-modal-open{overflow:hidden}
+
+@media (max-width:820px){
+  .parameters-modal{padding:12px;align-items:end}
+  .parameters-modal-panel{width:100%;max-height:calc(100svh - 18px);border-radius:18px 18px 10px 10px}
+  .parameters-modal-head{padding:18px 18px 14px}
+  .parameters-modal-body{padding:16px 18px}
+  .parameters-modal-footer{padding:13px 18px 18px}
+  .parameters-modal-footer .btn{height:42px;flex:1}
+  .mobile-screen-actions .mobile-parameters-action{display:grid;place-items:center}
+}
+
+/* Demand-model guidance inside the parameters dialog. */
+.parameter-assessment{display:block;margin-top:1px;padding:8px 10px;border-radius:8px;font-size:11px;line-height:1.4;font-weight:700;background:#f4f6f8;color:#475467}
+.parameter-assessment.is-critical{background:#fff0f0;color:#a61e24}
+.parameter-assessment.is-warning{background:#fff7df;color:#8a5a00}
+.parameter-assessment.is-working{background:#eef6ff;color:#245a92}
+.parameter-assessment.is-recommended{background:#edf8ee;color:#2f6b35}
+.parameter-assessment.is-neutral{background:#f3f0fa;color:#5d477a}
+.parameters-model-note{margin-top:16px;padding:11px 12px;border:1px solid #e2e7ee;border-radius:9px;background:#fafbfc;color:#596273;font-size:11px;line-height:1.5}
+
+
+/* =========================================================
+   Dashboard action controls — labelled, larger and contained
+   Export controls were removed from the Small App.
+   ========================================================= */
+.top-action-label,
+.mobile-action-label{
+  display:block;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+@media (min-width:821px){
+  .topbar-compact{
+    min-height:56px!important;
+    height:56px!important;
+    padding:0 12px!important;
+    overflow:hidden!important;
+    grid-template-columns:auto minmax(0,1fr) auto!important;
+    column-gap:14px!important;
+  }
+  .app-brand-top{
+    padding-left:6px!important;
+    align-self:stretch!important;
+    display:flex!important;
+    align-items:center!important;
+  }
+  .topbar-city-meta{
+    min-width:0!important;
+    overflow:hidden!important;
+  }
+  .actions-strip-compact{
+    width:auto!important;
+    max-width:100%!important;
+    min-width:0!important;
+    height:100%!important;
+    margin:0!important;
+    padding:0!important;
+    justify-self:end!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+    flex-wrap:nowrap!important;
+    gap:9px!important;
+    overflow:hidden!important;
+  }
+  .actions-strip-compact .mobile-top-lang-switch{
+    flex:0 0 auto!important;
+  }
+  .actions-strip-compact .top-action-btn{
+    width:auto!important;
+    max-width:150px!important;
+    height:40px!important;
+    min-height:40px!important;
+    padding:0 13px!important;
+    border-radius:10px!important;
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    gap:8px!important;
+    flex:0 1 auto!important;
+    font-size:12px!important;
+    line-height:1!important;
+    font-weight:850!important;
+    letter-spacing:0!important;
+    box-shadow:0 2px 5px rgba(15,23,42,.06)!important;
+  }
+  .actions-strip-compact #parametersBtn{min-width:126px!important;}
+  .actions-strip-compact #changeCityBtn{min-width:142px!important;}
+  .actions-strip-compact .top-action-btn svg{
+    width:19px!important;
+    height:19px!important;
+    flex:0 0 19px!important;
+    stroke-width:1.9!important;
+  }
+  .top-action-parameters{
+    color:#735b00!important;
+    background:linear-gradient(180deg,#fff8d8 0%,#ffefad 100%)!important;
+    border-color:#dfbf54!important;
+  }
+  .top-action-parameters:hover{
+    background:linear-gradient(180deg,#fff3bf 0%,#ffe58b 100%)!important;
+    border-color:#cda634!important;
+  }
+  .top-action-city{
+    color:#174f79!important;
+    background:linear-gradient(180deg,#f2f8ff 0%,#deefff 100%)!important;
+    border-color:#9bc6e8!important;
+  }
+  .top-action-city:hover{
+    background:linear-gradient(180deg,#e8f4ff 0%,#cfe8fb 100%)!important;
+    border-color:#75add8!important;
+  }
+  .top-action-btn:focus-visible{
+    outline:3px solid rgba(37,99,235,.2)!important;
+    outline-offset:2px!important;
+  }
+}
+
+@media (max-width:820px){
+  .mobile-screen-actions{
+    max-width:calc(100vw - 92px)!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+    flex-wrap:nowrap!important;
+    gap:7px!important;
+    overflow:hidden!important;
+  }
+  .mobile-screen-actions .mobile-action-pill{
+    width:auto!important;
+    max-width:112px!important;
+    min-width:86px!important;
+    height:36px!important;
+    min-height:36px!important;
+    padding:0 9px!important;
+    border-radius:11px!important;
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    gap:6px!important;
+    font-size:10.5px!important;
+    line-height:1!important;
+    font-weight:850!important;
+    white-space:nowrap!important;
+    box-shadow:0 6px 16px rgba(15,23,42,.10)!important;
+  }
+  .mobile-screen-actions .mobile-action-pill svg{
+    width:16px!important;
+    height:16px!important;
+    flex:0 0 16px!important;
+    fill:none!important;
+    stroke:currentColor!important;
+    stroke-width:1.9!important;
+    stroke-linecap:round!important;
+    stroke-linejoin:round!important;
+  }
+  .mobile-action-parameters{
+    color:#735b00!important;
+    background:linear-gradient(180deg,#fff8d8 0%,#ffefad 100%)!important;
+    border-color:#dfbf54!important;
+  }
+  .mobile-action-city{
+    color:#174f79!important;
+    background:linear-gradient(180deg,#f2f8ff 0%,#deefff 100%)!important;
+    border-color:#9bc6e8!important;
+  }
+}
+
+@media (max-width:360px){
+  .mobile-screen-actions{right:10px!important;gap:5px!important;max-width:calc(100vw - 82px)!important;}
+  .mobile-screen-actions .mobile-action-pill{
+    min-width:78px!important;
+    max-width:101px!important;
+    height:34px!important;
+    min-height:34px!important;
+    padding:0 7px!important;
+    gap:5px!important;
+    font-size:9.7px!important;
+  }
+  .mobile-screen-actions .mobile-action-pill svg{width:15px!important;height:15px!important;flex-basis:15px!important;}
+}
+
+
+/* =========================================================
+   Tall centered calculator controls
+   The two primary actions fill the header height without
+   crossing its bounds and remain centered with a medium gap.
+   ========================================================= */
+@media (min-width:821px){
+  .topbar-compact{
+    height:62px!important;
+    min-height:62px!important;
+    padding:4px 12px!important;
+    grid-template-columns:auto minmax(0,1fr)!important;
+    column-gap:18px!important;
+    overflow:hidden!important;
+  }
+  .app-brand-top{
+    grid-column:1!important;
+    height:100%!important;
+    align-self:stretch!important;
+  }
+  .topbar-city-meta{
+    display:none!important;
+  }
+  .actions-strip-compact{
+    grid-column:2!important;
+    width:100%!important;
+    max-width:none!important;
+    min-width:0!important;
+    height:100%!important;
+    justify-self:stretch!important;
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)!important;
+    align-items:center!important;
+    gap:0!important;
+    overflow:hidden!important;
+  }
+  .actions-strip-compact .top-action-pair{
+    grid-column:2!important;
+    justify-self:center!important;
+    height:100%!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    gap:16px!important;
+    min-width:0!important;
+  }
+  .actions-strip-compact .mobile-top-lang-switch{
+    grid-column:3!important;
+    justify-self:end!important;
+    margin-left:18px!important;
+  }
+  .actions-strip-compact .top-action-btn{
+    height:100%!important;
+    min-height:0!important;
+    max-height:54px!important;
+    padding:0 18px!important;
+    border-radius:11px!important;
+    gap:9px!important;
+    font-size:12.5px!important;
+    box-shadow:0 3px 8px rgba(15,23,42,.08)!important;
+  }
+  .actions-strip-compact #parametersBtn{
+    min-width:150px!important;
+    max-width:168px!important;
+  }
+  .actions-strip-compact #changeCityBtn{
+    min-width:166px!important;
+    max-width:184px!important;
+  }
+  .actions-strip-compact .top-action-btn svg{
+    width:20px!important;
+    height:20px!important;
+    flex:0 0 20px!important;
+  }
+}
+
+@media (max-width:820px){
+  .mobile-screen-actions{
+    left:50%!important;
+    right:auto!important;
+    transform:translateX(-50%)!important;
+    width:max-content!important;
+    max-width:calc(100vw - 20px)!important;
+    justify-content:center!important;
+    gap:12px!important;
+    overflow:visible!important;
+  }
+  .mobile-screen-actions .mobile-action-pill{
+    height:42px!important;
+    min-height:42px!important;
+    min-width:112px!important;
+    max-width:138px!important;
+    padding:0 12px!important;
+    border-radius:12px!important;
+    font-size:10.8px!important;
+    gap:7px!important;
+  }
+}
+
+@media (max-width:360px){
+  .mobile-screen-actions{
+    left:50%!important;
+    right:auto!important;
+    transform:translateX(-50%)!important;
+    gap:8px!important;
+    max-width:calc(100vw - 14px)!important;
+  }
+  .mobile-screen-actions .mobile-action-pill{
+    height:40px!important;
+    min-height:40px!important;
+    min-width:102px!important;
+    max-width:124px!important;
+    padding:0 9px!important;
+    font-size:10px!important;
+  }
+}
+
+/* =========================================================
+   Tall controls: restore right-aligned horizontal position
+   Button dimensions remain unchanged from the tall variant.
+   ========================================================= */
+@media (min-width:821px){
+  .actions-strip-compact{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+    gap:14px!important;
+  }
+  .actions-strip-compact .top-action-pair{
+    grid-column:auto!important;
+    justify-self:auto!important;
+    flex:0 0 auto!important;
+    height:100%!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+    gap:16px!important;
+  }
+  .actions-strip-compact .mobile-top-lang-switch{
+    grid-column:auto!important;
+    justify-self:auto!important;
+    flex:0 0 auto!important;
+    margin-left:0!important;
+  }
+}
+
+@media (max-width:820px){
+  .mobile-screen-actions{
+    left:auto!important;
+    right:14px!important;
+    transform:none!important;
+    width:auto!important;
+    max-width:calc(100vw - 20px)!important;
+    justify-content:flex-end!important;
+  }
+}
+
+@media (max-width:360px){
+  .mobile-screen-actions{
+    left:auto!important;
+    right:10px!important;
+    transform:none!important;
+  }
+}
+
+
+/* Dynamic insight states */
+#dashboard .insight[data-tone="success"] .insight-badge,
+#mobileStandaloneInsights .insight[data-tone="success"] .insight-badge{
+  color:#22733a!important;
+  background:linear-gradient(180deg,#f3fbf1,#e8f6e4)!important;
+  border-color:#cfe6c9!important;
+}
+#dashboard .insight[data-tone="warning"] .insight-badge,
+#mobileStandaloneInsights .insight[data-tone="warning"] .insight-badge{
+  color:#8a6200!important;
+  background:linear-gradient(180deg,#fffaf0,#fff1cf)!important;
+  border-color:#efd99b!important;
+}
+#dashboard .insight[data-tone="danger"] .insight-badge,
+#mobileStandaloneInsights .insight[data-tone="danger"] .insight-badge{
+  color:#a61e24!important;
+  background:linear-gradient(180deg,#fff7f7,#fde7e7)!important;
+  border-color:#efc6c8!important;
+}
+#dashboard .insight[data-tone="info"] .insight-badge,
+#mobileStandaloneInsights .insight[data-tone="info"] .insight-badge{
+  color:#195b89!important;
+  background:linear-gradient(180deg,#f5fbff,#e7f3fb)!important;
+  border-color:#c8deed!important;
+}
+
+/* =========================================================
+   ADAPTIVE DESKTOP INSIGHTS LAYOUT
+   Scenario text can vary substantially. The insights card grows to its real
+   content height; on low-height screens the right sidebar scrolls so no text,
+   chart or 12-month summary is clipped.
+   ========================================================= */
+@media (min-width:821px){
+  body:not(.city-start-mode) #dashboard .sidebar{
+    height:100%!important;
+    min-height:0!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    scrollbar-gutter:stable;
+    align-content:start!important;
+  }
+  body:not(.city-start-mode) #dashboard .sidebar::-webkit-scrollbar{width:6px;}
+  body:not(.city-start-mode) #dashboard .sidebar::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px;}
+  body:not(.city-start-mode) #dashboard .sidebar::-webkit-scrollbar-track{background:transparent;}
+
+  body:not(.city-start-mode) #dashboard .chart-card{
+    flex:0 0 clamp(210px,28vh,258px)!important;
+    min-height:210px!important;
+    max-height:258px!important;
+  }
+  body:not(.city-start-mode) #dashboard .chart-box{min-height:162px!important;}
+
+  body:not(.city-start-mode) #dashboard .insights-card{
+    flex:0 0 auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    height:auto!important;
+    overflow:hidden!important;
+  }
+  body:not(.city-start-mode) #dashboard .insights-card #insightsList{
+    display:block!important;
+    flex:0 0 auto!important;
+    min-height:0!important;
+    height:auto!important;
+    overflow:visible!important;
+  }
+  body:not(.city-start-mode) #dashboard .insight{
+    display:grid!important;
+    grid-template-columns:28px minmax(0,1fr)!important;
+    gap:7px!important;
+    align-items:start!important;
+    min-height:auto!important;
+    height:auto!important;
+    flex:none!important;
+    padding:7px 9px!important;
+  }
+  body:not(.city-start-mode) #dashboard .insight > div:last-child{min-width:0!important;}
+  body:not(.city-start-mode) #dashboard .insight-badge{margin-top:1px!important;}
+  body:not(.city-start-mode) #dashboard .insight-title,
+  body:not(.city-start-mode) #dashboard .insight-text{
+    white-space:normal!important;
+    overflow:visible!important;
+    text-overflow:clip!important;
+    overflow-wrap:anywhere!important;
+    word-break:normal!important;
+    hyphens:auto!important;
+  }
+  body:not(.city-start-mode) #dashboard .insight-title{
+    font-size:10.1px!important;
+    line-height:1.16!important;
+    margin-bottom:2px!important;
+  }
+  body:not(.city-start-mode) #dashboard .insight-text{
+    font-size:9.1px!important;
+    line-height:1.28!important;
+  }
+
+  body:not(.city-start-mode) #dashboard #insightsList[data-density="dense"] .insight{padding-top:6px!important;padding-bottom:6px!important;}
+  body:not(.city-start-mode) #dashboard #insightsList[data-density="dense"] .insight-title{font-size:9.8px!important;line-height:1.13!important;}
+  body:not(.city-start-mode) #dashboard #insightsList[data-density="dense"] .insight-text{font-size:8.8px!important;line-height:1.22!important;}
+  body:not(.city-start-mode) #dashboard #insightsList[data-density="very-dense"] .insight{padding-top:5px!important;padding-bottom:5px!important;}
+  body:not(.city-start-mode) #dashboard #insightsList[data-density="very-dense"] .insight-title{font-size:9.5px!important;line-height:1.1!important;}
+  body:not(.city-start-mode) #dashboard #insightsList[data-density="very-dense"] .insight-text{font-size:8.5px!important;line-height:1.17!important;}
+
+  body:not(.city-start-mode) #dashboard .summary-card{
+    flex:1 0 182px!important;
+    min-height:182px!important;
+    height:auto!important;
+  }
+}
+
+@media (min-width:821px) and (max-height:800px){
+  body:not(.city-start-mode) #dashboard .chart-card{
+    flex-basis:190px!important;
+    min-height:190px!important;
+    max-height:205px!important;
+  }
+  body:not(.city-start-mode) #dashboard .chart-box{min-height:142px!important;}
+  body:not(.city-start-mode) #dashboard .summary-card{
+    flex-basis:165px!important;
+    min-height:165px!important;
+  }
+}

@@ -17,11 +17,11 @@ const App=(()=>{
     state=saved&&saved.scenarios ? saved : {language:'pt-BR',currency:'BRL',advanced:false,activeScenarioId:'base',selectedCityId:null,scenarios:ScenarioManager.builtIns()};
     state.currency='BRL';
     state.advanced=false;
-    // Small App Brazil uses one automatic scenario only: payback target <= 7 months.
+    // Small App Brazil uses one reference scenario; payback is calculated from demand rather than targeted.
     const baseScenario=(ScenarioManager.builtIns().find(s=>s.id==='base')||ScenarioManager.builtIns()[0]);
     const savedBase=(state.scenarios||[]).find(s=>s.id==='base');
     if(savedBase&&savedBase.assumptions){
-      baseScenario.assumptions={...baseScenario.assumptions,...savedBase.assumptions,autoPopulationUsingService:true,averageFare:12,commission:15};
+      baseScenario.assumptions={...baseScenario.assumptions,...savedBase.assumptions,autoPopulationUsingService:false};
       baseScenario.notes=savedBase.notes||'';
     }
     state.scenarios=[baseScenario];
@@ -42,20 +42,171 @@ const App=(()=>{
 
   function applySelectedCity(city){
     if(!city)return;
+    const initialInvestment=Number(city.initialPayment)||0;
     state.selectedCityId=city.id;
-    state.selectedCitySnapshot={id:city.id,state:city.state,city:city.city,population:Number(city.population)||0,initialPayment:Number(city.initialPayment)||0};
+    state.selectedCitySnapshot={id:city.id,state:city.state,city:city.city,population:Number(city.population)||0,initialPayment:initialInvestment};
     const population=Number(city.population)||0;
+    const recommendedBudget=FinancialEngine.annualMarketingBudgetForPopulation(population);
     state.activeScenario.assumptions.population=population;
-    state.activeScenario.assumptions.initialInvestment=Number(city.initialPayment)||0;
-    state.activeScenario.assumptions.averageFare=12;
-    state.activeScenario.assumptions.commission=15;
+    state.activeScenario.assumptions.initialInvestment=initialInvestment;
+    state.activeScenario.assumptions.useRecommendedValues=true;
+    state.activeScenario.assumptions.averageFare=FinancialEngine.recommendedAverageFareForPopulation(population);
+    state.activeScenario.assumptions.commission=FinancialEngine.recommendedCommissionForPopulation(population);
     state.activeScenario.assumptions.advertisingPackage=FinancialEngine.advertisingPackageForPopulation(population);
-    state.activeScenario.assumptions.marketingBudget=FinancialEngine.annualMarketingBudgetForPopulation(population);
+    state.activeScenario.assumptions.marketingBudget=recommendedBudget;
     state.activeScenario.assumptions.marketingDistributionPreset='auto';
     state.activeScenario.assumptions.marketingDistribution=FinancialEngine.marketingSharesForPopulation(population);
-    state.activeScenario.assumptions.autoPopulationUsingService=true;
+    state.activeScenario.assumptions.autoPopulationUsingService=false;
     startFilterState=city.state;
     startFilterCityId=city.id;
+  }
+
+  let parametersReturnFocus=null;
+
+  function getRecommendedParameters(){
+    const population=Number(state.activeScenario?.assumptions?.population)||Number(cityById(state.selectedCityId)?.population)||0;
+    return {
+      marketingBudget:FinancialEngine.annualMarketingBudgetForPopulation(population),
+      averageFare:FinancialEngine.recommendedAverageFareForPopulation(population),
+      commission:FinancialEngine.recommendedCommissionForPopulation(population)
+    };
+  }
+
+  function setParametersFieldsDisabled(disabled){
+    const fields=document.getElementById('parametersFields');
+    if(fields)fields.classList.toggle('is-disabled',disabled);
+    ['annualInvestmentBudgetInput','averageFareParameterInput','driverCommissionParameterInput'].forEach(id=>{
+      const input=document.getElementById(id);
+      if(input)input.disabled=disabled;
+    });
+  }
+
+  function setParameterInputs(values){
+    const budget=document.getElementById('annualInvestmentBudgetInput');
+    const fare=document.getElementById('averageFareParameterInput');
+    const commission=document.getElementById('driverCommissionParameterInput');
+    if(budget)budget.value=String(Math.max(0,Number(values.marketingBudget)||0));
+    if(fare)fare.value=String(Math.max(0,Number(values.averageFare)||0));
+    if(commission)commission.value=String(Math.max(0,Number(values.commission)||0));
+  }
+
+  function readParameterInputs(){
+    return {
+      marketingBudget:Number(document.getElementById('annualInvestmentBudgetInput')?.value),
+      averageFare:Number(document.getElementById('averageFareParameterInput')?.value),
+      commission:Number(document.getElementById('driverCommissionParameterInput')?.value)
+    };
+  }
+
+  function updateBudgetAssessment(){
+    const el=document.getElementById('investmentBudgetAssessment');
+    if(!el)return;
+    const recommended=getRecommendedParameters().marketingBudget;
+    const budget=Math.max(0,Number(document.getElementById('annualInvestmentBudgetInput')?.value)||0);
+    const ratio=recommended>0?budget/recommended:0;
+    let key='budgetAssessmentRecommended',tone='recommended';
+    if(budget===0){key='budgetAssessmentZero';tone='critical';}
+    else if(ratio<0.3){key='budgetAssessmentCritical';tone='critical';}
+    else if(ratio<0.7){key='budgetAssessmentBelow';tone='warning';}
+    else if(ratio<1){key='budgetAssessmentWorking';tone='working';}
+    else if(ratio<=1.3){key='budgetAssessmentRecommended';tone='recommended';}
+    else {key='budgetAssessmentDiminishing';tone='neutral';}
+    el.className=`parameter-assessment is-${tone}`;
+    el.textContent=Localization.t(key,{percent:Math.round(ratio*100),recommended:fmtBRL(recommended)});
+  }
+
+  function renderParameterButtonLabels(){
+    const label=Localization.t('parameters');
+    ['parametersBtn','mobileParametersBtn'].forEach(id=>{
+      const button=document.getElementById(id);
+      if(button){button.title=label;button.setAttribute('aria-label',label);}
+    });
+    const cityLabel=Localization.t('changeCity');
+    ['changeCityBtn','mobileChangeCityBtn'].forEach(id=>{
+      const button=document.getElementById(id);
+      if(button){button.title=cityLabel;button.setAttribute('aria-label',cityLabel);}
+    });
+  }
+
+  function openParametersModal(trigger){
+    if(!cityById(state.selectedCityId))return;
+    const modal=document.getElementById('parametersModal');
+    const checkbox=document.getElementById('recommendedValuesCheckbox');
+    const validation=document.getElementById('parametersValidation');
+    if(!modal||!checkbox)return;
+    parametersReturnFocus=trigger||document.activeElement;
+    const current=FinancialEngine.normalizeAssumptions(state.activeScenario.assumptions);
+    const recommended=getRecommendedParameters();
+    const useRecommended=current.useRecommendedValues!==false;
+    checkbox.checked=useRecommended;
+    modal.dataset.customBudget=String(current.marketingBudget);
+    modal.dataset.customFare=String(current.averageFare);
+    modal.dataset.customCommission=String(current.commission);
+    setParameterInputs(useRecommended?recommended:current);
+    setParametersFieldsDisabled(useRecommended);
+    updateBudgetAssessment();
+    if(validation){validation.hidden=true;validation.textContent='';}
+    modal.hidden=false;
+    modal.setAttribute('aria-hidden','false');
+    document.body.classList.add('parameters-modal-open');
+    setTimeout(()=>{(useRecommended?checkbox:document.getElementById('annualInvestmentBudgetInput'))?.focus();},0);
+  }
+
+  function closeParametersModal(){
+    const modal=document.getElementById('parametersModal');
+    if(!modal||modal.hidden)return;
+    modal.hidden=true;
+    modal.setAttribute('aria-hidden','true');
+    document.body.classList.remove('parameters-modal-open');
+    const focusTarget=parametersReturnFocus;
+    parametersReturnFocus=null;
+    setTimeout(()=>focusTarget?.focus?.(),0);
+  }
+
+  function toggleRecommendedDraft(checked){
+    const modal=document.getElementById('parametersModal');
+    if(!modal)return;
+    if(checked){
+      const current=readParameterInputs();
+      if(Number.isFinite(current.marketingBudget))modal.dataset.customBudget=String(current.marketingBudget);
+      if(Number.isFinite(current.averageFare))modal.dataset.customFare=String(current.averageFare);
+      if(Number.isFinite(current.commission))modal.dataset.customCommission=String(current.commission);
+      setParameterInputs(getRecommendedParameters());
+    }else{
+      setParameterInputs({
+        marketingBudget:Number(modal.dataset.customBudget),
+        averageFare:Number(modal.dataset.customFare),
+        commission:Number(modal.dataset.customCommission)
+      });
+    }
+    setParametersFieldsDisabled(checked);
+    updateBudgetAssessment();
+  }
+
+  function confirmParameters(){
+    const checkbox=document.getElementById('recommendedValuesCheckbox');
+    const validation=document.getElementById('parametersValidation');
+    if(!checkbox)return;
+    const useRecommended=checkbox.checked;
+    const values=useRecommended?getRecommendedParameters():readParameterInputs();
+    let message='';
+    if(!Number.isFinite(values.marketingBudget)||values.marketingBudget<0)message=Localization.t('validationAnnualBudget');
+    else if(!Number.isFinite(values.averageFare)||values.averageFare<=0)message=Localization.t('validationFare');
+    else if(!Number.isFinite(values.commission)||values.commission<0||values.commission>50)message=Localization.t('validationCommission');
+    if(message){
+      if(validation){validation.textContent=message;validation.hidden=false;}
+      return;
+    }
+    pushUndo();
+    const a=state.activeScenario.assumptions;
+    a.useRecommendedValues=useRecommended;
+    a.marketingBudget=values.marketingBudget;
+    a.averageFare=values.averageFare;
+    a.commission=values.commission;
+    a.marketingDistributionPreset='auto';
+    a.marketingDistribution=FinancialEngine.marketingSharesForPopulation(a.population);
+    closeParametersModal();
+    recalc();
   }
 
   function setScreen(){
@@ -72,7 +223,8 @@ const App=(()=>{
     const box=document.getElementById('selectedCityBanner');
     const topbar=document.getElementById('topbarCityMeta');
     const c=cityById(state.selectedCityId);
-    const html=c ? `<div class="city-chip"><strong>${Localization.t('selectedCity')}:</strong> ${c.city}, ${c.state}</div><div class="city-chip"><strong>${Localization.t('populationHeader')}:</strong> ${fmtNumber(c.population)}</div><div class="city-chip"><strong>${Localization.t('initialPaymentHeader')}:</strong> ${fmtBRL(c.initialPayment)}</div>` : '';
+    const effectiveInvestment=state.activeScenario?.assumptions?.initialInvestment??c?.initialPayment??0;
+    const html=c ? `<div class="city-chip"><strong>${Localization.t('selectedCity')}:</strong> ${c.city}, ${c.state}</div><div class="city-chip"><strong>${Localization.t('populationHeader')}:</strong> ${fmtNumber(c.population)}</div><div class="city-chip"><strong>${Localization.t('initialPaymentHeader')}:</strong> ${fmtBRL(effectiveInvestment)}</div>` : '';
     if(box) box.innerHTML=html;
     if(topbar) topbar.innerHTML='';
   }
@@ -273,7 +425,7 @@ const App=(()=>{
   const htmlEsc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
   function mobileMonthLabel(value){
     const n=Number(value);
-    if(!Number.isFinite(n)||n<=0)return '—';
+    if(!Number.isFinite(n)||n<=0)return Localization.t('notAchieved12');
     return `${Localization.t('month')} ${Math.round(n)}`;
   }
 
@@ -284,6 +436,7 @@ const App=(()=>{
 
   function mobileInsightIcon(name){
     const icons={
+      briefcase:`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7V6a3 3 0 0 1 3-3h2a3 3 0 0 1 3 3v1"/><rect x="4" y="7" width="16" height="13" rx="3"/><path d="M4 12h16M10 12v2h4v-2"/></svg>`,
       calendar:`<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>`,
       growth:`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17l5-5 4 4 7-9"/><path d="M15 7h5v5"/></svg>`,
       coin:`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v10M9 10.2c0-1.4 1.2-2.2 3-2.2s3 .8 3 2.2c0 1.3-1 1.9-3 2.1-2 .2-3 .8-3 2.1s1.2 2.2 3 2.2 3-.8 3-2.2"/></svg>`,
@@ -308,18 +461,20 @@ const App=(()=>{
     const c=cityById(state.selectedCityId);
     const cityTitle=c?`${c.city}, ${c.state}`:'—';
     const pop=c?fmtNumber(c.population):'—';
-    const pay=c?fmtBRL(c.initialPayment):'—';
+    const pay=fmtBRL(model.summary.initialPayment||0);
     const paybackText=mobileMonthLabel(model.summary.paybackPeriod);
     const monthlyBreakEven=mobileMonthLabel(model.summary.breakEvenPeriod);
     const profitCompact=fmtBRLCompact(model.summary.netProfit);
     const cards=[
       {cls:'city',icon:'city',label:Localization.t('selectedCity'),value:cityTitle,sub:`${Localization.t('populationHeader')}: ${pop} · ${Localization.t('initialPaymentHeader')}: ${pay}`},
-      {icon:'briefcase',label:Localization.t('initialInvestment'),value:fmtBRLCompact(model.summary.totalInvestment),sub:`${Localization.t('averageMonthlyInvestment')}: ${fmtBRLCompact(model.summary.averageMonthlyInvestment||0)}`},
+      {cls:'investment-editable',icon:'briefcase',label:Localization.t('initialInvestment'),value:fmtBRLCompact(model.summary.totalInvestment),sub:`${Localization.t('averageMonthlyInvestment')}: ${fmtBRLCompact(model.summary.averageMonthlyInvestment||0)}`},
       {icon:'target',label:Localization.t('breakEven'),value:paybackText,sub:`${Localization.t('monthlyEquilibrium')}: ${monthlyBreakEven}`},
       {icon:'profit',label:Localization.t('yearProfit'),value:profitCompact},
       {icon:'roi',label:Localization.t('roi12'),value:Math.round(model.summary.roi)+'%'}
     ];
-    const cardHtml=cards.map(x=>`<div class="mobile-kpi-card ${x.cls||''}">${mobileKpiIcon(x.icon)}<div class="mobile-kpi-copy"><div class="mobile-kpi-label">${htmlEsc(x.label)}</div><div class="mobile-kpi-value">${htmlEsc(x.value)}</div>${x.sub?`<div class="mobile-kpi-sub">${htmlEsc(x.sub)}</div>`:''}</div></div>`).join('');
+    const cardHtml=cards.map(x=>{
+      return `<div class="mobile-kpi-card ${x.cls||''}">${mobileKpiIcon(x.icon)}<div class="mobile-kpi-copy"><div class="mobile-kpi-label">${htmlEsc(x.label)}</div><div class="mobile-kpi-value">${htmlEsc(x.value)}</div>${x.sub?`<div class="mobile-kpi-sub">${htmlEsc(x.sub)}</div>`:''}</div></div>`;
+    }).join('');
     holder.innerHTML=cardHtml;
   }
 
@@ -345,7 +500,7 @@ const App=(()=>{
     const title=document.querySelector('#mobileChartScreen .mobile-chart-card h2');
     if(title)title.textContent=state.language==='pt-BR'?'Visão geral do fluxo de caixa':'Cash flow overview';
     const note=document.getElementById('mobileChartNote');
-    if(note)note.textContent=Localization.t('mobileCashFlowNote',{payback:mobileMonthLabel(model.summary.paybackPeriod)});
+    if(note)note.textContent=model.summary.paybackPeriod?Localization.t('mobileCashFlowNote',{payback:mobileMonthLabel(model.summary.paybackPeriod)}):Localization.t('noPaybackText');
     if(!canvas||!window.Chart)return;
     const cfg=mobileChartConfig();
     if(!cfg)return;
@@ -411,15 +566,8 @@ const App=(()=>{
   function renderMobileInsights(){
     const dst=document.getElementById('mobileStandaloneInsights');
     if(!dst||!model)return;
-    const breakEvenMonth=mobileMonthLabel(model.summary.breakEvenPeriod);
-    const paybackMonth=mobileMonthLabel(model.summary.paybackPeriod);
-    const rows=[
-      ['calendar','breakEvenMonth','breakEvenText',{month:breakEvenMonth}],
-      ['growth','consistentGrowth','consistentGrowthText',{}],
-      ['coin','highProfitability','profitText',{profit:fmtBRLCompact(model.summary.netProfit),roi:Math.round(model.summary.roi)+'%'}],
-      ['balance','positiveCashFlow','cashText',{month:paybackMonth}]
-    ];
-    dst.innerHTML=rows.map(([ic,title,text,vars])=>`<div class="insight"><div class="insight-badge">${mobileInsightIcon(ic)}</div><div><div class="insight-title">${htmlEsc(Localization.t(title))}</div><div class="insight-text">${htmlEsc(Localization.t(text,vars))}</div></div></div>`).join('');
+    const rows=UIRenderer.getInsightRows(model);
+    dst.innerHTML=rows.map(row=>`<div class="insight" data-tone="${row.tone||'neutral'}"><div class="insight-badge">${mobileInsightIcon(row.icon)}</div><div><div class="insight-title">${htmlEsc(Localization.t(row.title))}</div><div class="insight-text">${htmlEsc(Localization.t(row.text,row.vars||{}))}</div></div></div>`).join('');
   }
 
   function renderMobileSummary(){
@@ -432,7 +580,7 @@ const App=(()=>{
       ['totalOperatingExpenses',model.summary.totalExpenses,'currency','summary-expense-row'],
       ['netProfit',model.summary.netProfit,'currency','summary-positive-row'],
       ['roi12',model.summary.roi,'%','summary-positive-row'],
-      ['paybackPeriod',model.summary.paybackPeriod?`${Localization.t('month')} ${model.summary.paybackPeriod}`:'—','','summary-positive-row']
+      ['paybackPeriod',model.summary.paybackPeriod?`${Localization.t('month')} ${model.summary.paybackPeriod}`:Localization.t('notAchieved12'),'','summary-positive-row']
     ];
     dst.innerHTML=rows.map(([key,val,type,cls])=>{
       const value=typeof val==='number'?(type==='%'?Math.round(val)+'%':fmtBRL(val)):val;
@@ -499,6 +647,7 @@ const App=(()=>{
     model.currency='BRL';
     UIRenderer.renderAll(state,model,errors);
     renderSelectedCityBanner();
+    renderParameterButtonLabels();
     renderStartScreen();
     syncMobilePresentation();
     renderMobileApp();
@@ -533,6 +682,11 @@ const App=(()=>{
 
   function bind(){
     document.body.addEventListener('change',onInput);
+    document.body.addEventListener('keydown',e=>{
+      const modal=document.getElementById('parametersModal');
+      if(!modal?.hidden&&e.key==='Escape'){e.preventDefault();closeParametersModal();}
+      if(!modal?.hidden&&e.key==='Enter'&&e.target?.tagName!=='BUTTON'){e.preventDefault();confirmParameters();}
+    });
     const mobileNavHandler=e=>{
       const nav=e.target.closest?.('[data-mobile-page-target]');
       if(nav&&isMobileLayout()){
@@ -544,6 +698,10 @@ const App=(()=>{
     document.body.addEventListener('pointerup',mobileNavHandler,{capture:true});
     document.body.addEventListener('touchend',mobileNavHandler,{capture:true,passive:false});
     document.body.addEventListener('click',e=>{
+      const parametersTrigger=e.target.closest('#parametersBtn, #mobileParametersBtn');
+      if(parametersTrigger){openParametersModal(parametersTrigger);return}
+      if(e.target.closest('[data-close-parameters-modal], #cancelParametersBtn')){closeParametersModal();return}
+      if(e.target.closest('#confirmParametersBtn')){confirmParameters();return}
       const mobilePageNav=e.target.closest('[data-mobile-page-target]');
       if(mobilePageNav){mobileSetPage(mobilePageNav.dataset.mobilePageTarget);return}
       const mobileNav=e.target.closest('[data-mobile-target]');
@@ -582,19 +740,18 @@ const App=(()=>{
     document.getElementById('mobileStartLanguageButton')?.addEventListener('click',()=>{state.language=state.language==='pt-BR'?'en':'pt-BR';Localization.setLanguage(state.language);renderStartScreen();renderMobileApp();persist()});
     document.getElementById('mobileLanguageSelect')?.addEventListener('change',e=>{state.language=e.target.value;recalc();persist()});
     window.addEventListener('resize',()=>{if(isMobileLayout()&&cityById(state.selectedCityId)&&!document.body.dataset.mobileSlide)document.body.dataset.mobileSlide='kpi';});
+    document.getElementById('recommendedValuesCheckbox')?.addEventListener('change',e=>toggleRecommendedDraft(e.target.checked));
+    document.getElementById('annualInvestmentBudgetInput')?.addEventListener('input',updateBudgetAssessment);
     document.getElementById('startStateSelect').addEventListener('change',e=>{startFilterState=e.target.value;startFilterCityId='';renderStartScreen();renderMobileStartScreen()});
     document.getElementById('startCitySelect').addEventListener('change',e=>{startFilterCityId=e.target.value;renderStartScreen();renderMobileStartScreen()});
     document.getElementById('mobileStateSelect')?.addEventListener('change',e=>{startFilterState=e.target.value;startFilterCityId='';renderStartScreen();renderMobileStartScreen()});
     document.getElementById('mobileCitySelect')?.addEventListener('change',e=>{startFilterCityId=e.target.value;renderStartScreen();renderMobileStartScreen()});
-    document.getElementById('mobileExportPdfBtn')?.addEventListener('click',Exporter.exportPdf);
     document.getElementById('notesArea')?.addEventListener('input',e=>{state.activeScenario.notes=e.target.value;persist()});
     document.getElementById('languageSelect')?.addEventListener('change',e=>{state.language=e.target.value;recalc()});
     document.getElementById('modeToggle')?.addEventListener('click',()=>{state.advanced=!state.advanced;recalc()});
     document.getElementById('resetBtn')?.addEventListener('click',()=>{if(!confirm(Localization.t('confirmReset')))return;pushUndo();const type=['conservative','optimistic'].includes(state.activeScenarioId)?state.activeScenarioId:'base';state.activeScenario.assumptions=FinancialEngine.defaultAssumptions(type);const c=cityById(state.selectedCityId);if(c)applySelectedCity(c);recalc()});
     document.getElementById('undoBtn')?.addEventListener('click',()=>{if(!undo.length)return;redo.push(snapshot());restore(undo.pop())});
     document.getElementById('redoBtn')?.addEventListener('click',()=>{if(!redo.length)return;undo.push(snapshot());restore(redo.pop())});
-    document.getElementById('exportPdf')?.addEventListener('click',Exporter.exportPdf);
-    document.getElementById('exportExcel')?.addEventListener('click',()=>Exporter.exportExcel(model));
   }
   function init(){hydrate();bind();bindMobileGestures();recalc()}
   return{init}

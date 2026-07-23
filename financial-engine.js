@@ -38,6 +38,53 @@ const FinancialEngine=(()=>{
     else raw=pkg*5;
     return p<10000 ? 5000 : roundTo(raw,500);
   }
+  function recommendedAverageFareForPopulation(_population){return 12}
+  function recommendedCommissionForPopulation(_population){return 15}
+
+  // Reference demand potential is independent from profitability and payback.
+  // Smaller cities can reach a higher daily penetration rate; larger cities use a
+  // more conservative rate so demand does not grow linearly without limit.
+  function recommendedDailyDemandRateForPopulation(population){
+    const p=n(population);
+    if(p<50000)return 1.9;
+    if(p<75000)return 1.65;
+    if(p<100000)return 1.45;
+    if(p<150000)return 1.25;
+    return 1.1;
+  }
+
+  // Below the recommended budget, underinvestment has a stronger-than-linear
+  // impact. Above the recommendation, additional spend has diminishing returns.
+  function investmentDemandFactor(annualBudget,population){
+    const recommended=annualMarketingBudgetForPopulation(population);
+    const budget=Math.max(0,n(annualBudget));
+    if(recommended<=0)return budget>0?1:0;
+    const ratio=budget/recommended;
+    if(ratio<=0)return 0;
+    if(ratio<=1)return Math.pow(ratio,1.35);
+    return Math.min(1.25,1+Math.sqrt(ratio-1)*0.18);
+  }
+
+  // A higher fare increases revenue per ride but reduces demand. A lower fare can
+  // improve demand only modestly because price alone cannot create the market.
+  function fareDemandFactor(averageFare,population){
+    const recommended=recommendedAverageFareForPopulation(population);
+    const fare=Math.max(0.01,n(averageFare));
+    if(recommended<=0)return 1;
+    const ratio=fare/recommended;
+    if(ratio>=1)return Math.max(0.35,1-0.8*(ratio-1));
+    return Math.min(1.1,1+0.3*(1-ratio));
+  }
+
+  // Driver commission affects supply and therefore the share of demand that can
+  // actually be fulfilled. High commission is penalised more strongly.
+  function commissionFulfillmentFactor(commission,population){
+    const recommended=recommendedCommissionForPopulation(population);
+    const value=Math.max(0,n(commission));
+    const diff=value-recommended;
+    if(diff>0)return Math.max(0.25,1-0.03*diff);
+    return Math.min(1.1,1+0.01*Math.abs(diff));
+  }
   function marketingSharesForPopulation(population){
     const p=n(population);
     return p<20000 ? [10,10,10,9,9,8,8,8,7,7,7,7] : [14,13,12,10,9,8,7,6,6,5,5,5];
@@ -71,16 +118,29 @@ const FinancialEngine=(()=>{
     }));
     if(!a.expenseRows.some(r=>r.id==='assistente')){a.expenseRows.unshift({id:'assistente',name:'Assistente',amount:0,removable:false,showInModel:true,fixedType:'assistant'})} 
     a.expenseRows=a.expenseRows.map(r=>r.id==='assistente'?{...r,name:'Assistente',amount:0,removable:false,showInModel:true,fixedType:'assistant'}:(r.id==='other_costs'?{...r,name:'Other Costs',amount:0,showInModel:false,hidden:true}:r));
-    a.averageFare=12;
-    a.commission=15;
+    const recommendedBudget=annualMarketingBudgetForPopulation(a.population);
+    const recommendedFare=recommendedAverageFareForPopulation(a.population);
+    const recommendedCommission=recommendedCommissionForPopulation(a.population);
+    a.useRecommendedValues=a.useRecommendedValues!==false;
+    if(a.useRecommendedValues){
+      a.marketingBudget=recommendedBudget;
+      a.averageFare=recommendedFare;
+      a.commission=recommendedCommission;
+    }else{
+      a.marketingBudget=Math.max(0,n(a.marketingBudget));
+      a.averageFare=Math.max(0.01,n(a.averageFare)||recommendedFare);
+      a.commission=Math.min(50,Math.max(0,n(a.commission)));
+    }
+    a.recommendedMarketingBudget=recommendedBudget;
+    a.recommendedAverageFare=recommendedFare;
+    a.recommendedCommission=recommendedCommission;
     a.advertisingPackage=advertisingPackageForPopulation(a.population);
-    a.marketingBudget=annualMarketingBudgetForPopulation(a.population);
     a.marketingDistributionPreset='auto';
     a.marketingDistribution=marketingSharesForPopulation(a.population);
     a.ridesDistributionPreset=a.ridesDistributionPreset||'balanced';
     a.ridesDistribution=normPctArray(a.ridesDistribution,ridesPresets[a.ridesDistributionPreset]||ridesPresets.balanced);
-    if(!Number.isFinite(n(a.percentagePopulationUsingService))) a.percentagePopulationUsingService=1;
-    a.percentagePopulationUsingService=Math.min(4,Math.max(1,n(a.percentagePopulationUsingService)||1));
+    a.percentagePopulationUsingService=recommendedDailyDemandRateForPopulation(a.population);
+    a.autoPopulationUsingService=false;
     const legacyThailandRules=Array.isArray(a.revenueRules)&&a.revenueRules.some(r=>[20000,30000,40000,50000].includes(n(r.threshold)));
     if(!Array.isArray(a.revenueRules)||!a.revenueRules.length||legacyThailandRules||(a.revenueRules.length===1&&n(a.revenueRules[0].threshold)===0&&n(a.revenueRules[0].maximShare)===100)){a.revenueRules=defaultRevenueRules()}
     a.revenueRules=a.revenueRules.map((r,i)=>({id:r.id||uid(),threshold:Math.max(0,n(r.threshold)),maximShare:Math.min(100,Math.max(0,n(r.maximShare))),removable:r.removable!==false})).sort((x,y)=>x.threshold-y.threshold);
@@ -96,16 +156,22 @@ const FinancialEngine=(()=>{
   ]}
   function defaultAssumptions(type='base'){
     const presets={
-      conservative:{population:100000,averageFare:18,commission:10,rideGrowth:10,marketingBudget:25000,initialInvestment:8000,operatingExpenses:1500,percentagePopulationUsingService:1,expenseRows:defaultExpenseRows(1500),marketingDistributionPreset:'balanced',marketingDistribution:clone(marketingPresets.balanced),ridesDistributionPreset:'slow',ridesDistribution:clone(ridesPresets.slow)},
-      base:{population:100000,averageFare:20,commission:10,rideGrowth:18,marketingBudget:30000,initialInvestment:10000,operatingExpenses:1500,percentagePopulationUsingService:1,expenseRows:defaultExpenseRows(1500),marketingDistributionPreset:'balanced',marketingDistribution:clone(marketingPresets.balanced),ridesDistributionPreset:'balanced',ridesDistribution:clone(ridesPresets.balanced)},
-      optimistic:{population:100000,averageFare:24,commission:12,rideGrowth:25,marketingBudget:40000,initialInvestment:12000,operatingExpenses:2000,percentagePopulationUsingService:2,expenseRows:defaultExpenseRows(2000),marketingDistributionPreset:'growth',marketingDistribution:clone(marketingPresets.growth),ridesDistributionPreset:'aggressive',ridesDistribution:clone(ridesPresets.aggressive)}
+      conservative:{population:100000,averageFare:18,commission:10,rideGrowth:10,marketingBudget:25000,initialInvestment:8000,operatingExpenses:1500,percentagePopulationUsingService:1,useRecommendedValues:true,expenseRows:defaultExpenseRows(1500),marketingDistributionPreset:'balanced',marketingDistribution:clone(marketingPresets.balanced),ridesDistributionPreset:'slow',ridesDistribution:clone(ridesPresets.slow)},
+      base:{population:100000,averageFare:20,commission:10,rideGrowth:18,marketingBudget:30000,initialInvestment:10000,operatingExpenses:1500,percentagePopulationUsingService:1,useRecommendedValues:true,expenseRows:defaultExpenseRows(1500),marketingDistributionPreset:'balanced',marketingDistribution:clone(marketingPresets.balanced),ridesDistributionPreset:'balanced',ridesDistribution:clone(ridesPresets.balanced)},
+      optimistic:{population:100000,averageFare:24,commission:12,rideGrowth:25,marketingBudget:40000,initialInvestment:12000,operatingExpenses:2000,percentagePopulationUsingService:2,useRecommendedValues:true,expenseRows:defaultExpenseRows(2000),marketingDistributionPreset:'growth',marketingDistribution:clone(marketingPresets.growth),ridesDistributionPreset:'aggressive',ridesDistribution:clone(ridesPresets.aggressive)}
     };
     return clone(presets[type]||presets.base)
   }
   function calculateCore(assumptions){
     const a=normalizeAssumptions(assumptions);
     const months=[];let accumulated=0;
-    const targetRidesDay=Math.round(n(a.population)*n(a.percentagePopulationUsingService)/100);
+    const baseDemandRate=recommendedDailyDemandRateForPopulation(a.population);
+    const baseTargetRidesDay=Math.round(n(a.population)*baseDemandRate/100);
+    const budgetDemandFactor=investmentDemandFactor(a.marketingBudget,a.population);
+    const fareFactor=fareDemandFactor(a.averageFare,a.population);
+    const commissionFactor=commissionFulfillmentFactor(a.commission,a.population);
+    const combinedDemandFactor=budgetDemandFactor*fareFactor*commissionFactor;
+    const targetRidesDay=Math.max(0,Math.round(baseTargetRidesDay*combinedDemandFactor));
     const autoMarketingBudgets=monthlyMarketingBudgets(a.marketingBudget,a.population);
     for(let i=0;i<14;i++){
       const isSetup=i===0,isPrep=i===1,monthNo=i-1;
@@ -148,21 +214,10 @@ const FinancialEngine=(()=>{
     const roi=totalInvestment?netProfit/totalInvestment*100:0;
     const breakEven=months.find(x=>x.index>1&&x.netProfit>=0);
     const payback=months.find(x=>x.index>1&&x.accumulated>=0);
-    return{assumptions:a,months,summary:{initialPayment,totalMarketingInvestment,totalAssistantExpense,totalInvestment,totalRevenue,totalPartnerRevenue,totalCommissionFromRides,totalExpenses,averageMonthlyInvestment,netProfit,roi,breakEvenPeriod:breakEven?breakEven.monthNo:null,breakEvenKey:breakEven?breakEven.key:null,paybackPeriod:payback?payback.monthNo:null,paybackKey:payback?payback.key:null,targetRidesDay}}
+    return{assumptions:a,months,summary:{initialPayment,totalMarketingInvestment,totalAssistantExpense,totalInvestment,totalRevenue,totalPartnerRevenue,totalCommissionFromRides,totalExpenses,averageMonthlyInvestment,netProfit,roi,breakEvenPeriod:breakEven?breakEven.monthNo:null,breakEvenKey:breakEven?breakEven.key:null,paybackPeriod:payback?payback.monthNo:null,paybackKey:payback?payback.key:null,targetRidesDay,baseTargetRidesDay,baseDemandRate,budgetDemandFactor,fareDemandFactor:fareFactor,commissionFulfillmentFactor:commissionFactor,combinedDemandFactor,recommendedMarketingBudget:a.recommendedMarketingBudget}}
   }
   function calculate(assumptions){
-    let base=normalizeAssumptions(assumptions);
-    base.averageFare=12;
-    base.commission=15;
-    if(base.autoPopulationUsingService===false){return calculateCore(base)}
-    let selected=null;
-    for(let step=10;step<=40;step++){
-      const candidate={...base,percentagePopulationUsingService:step/10};
-      const result=calculateCore(candidate);
-      if(result.summary.paybackPeriod&&result.summary.paybackPeriod<=7){selected=result;break}
-    }
-    if(!selected){selected=calculateCore({...base,percentagePopulationUsingService:4})}
-    return selected;
+    return calculateCore(normalizeAssumptions(assumptions));
   }
   function formatMoney(v,compact=false){
     const value=n(v);
@@ -191,5 +246,5 @@ const FinancialEngine=(()=>{
     if(type==='rides'&&ridesPresets[preset]){a.ridesDistributionPreset=preset;a.ridesDistribution=clone(ridesPresets[preset])}
     return a;
   }
-  return{calculate,defaultAssumptions,normalizeAssumptions,createExpenseRow,createRevenueRule,formatMoney,formatCurrencyFull,formatCurrencyCompact,formatPercent,monthKeys,marketingPresets,ridesPresets,applyPreset,advertisingPackageForPopulation,annualMarketingBudgetForPopulation,marketingSharesForPopulation,monthlyMarketingBudgets}
+  return{calculate,defaultAssumptions,normalizeAssumptions,createExpenseRow,createRevenueRule,formatMoney,formatCurrencyFull,formatCurrencyCompact,formatPercent,monthKeys,marketingPresets,ridesPresets,applyPreset,advertisingPackageForPopulation,annualMarketingBudgetForPopulation,recommendedAverageFareForPopulation,recommendedCommissionForPopulation,recommendedDailyDemandRateForPopulation,investmentDemandFactor,fareDemandFactor,commissionFulfillmentFactor,marketingSharesForPopulation,monthlyMarketingBudgets}
 })();
