@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "cities": 2023,
+  "customProfiles": 504,
+  "assertions": 297366,
+  "baseline": 109030.39,
+  "extraExpenseAnnualEffect": 12003
+}

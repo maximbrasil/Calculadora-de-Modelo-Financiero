@@ -114,7 +114,7 @@
       if(this._destroyed||!this.canvas||!this.canvas.getContext)return;
       const size=this._dimensions();
       if(size.width<=40||size.height<=40){
-        this._raf=requestAnimationFrame(()=>this._draw());
+        // ResizeObserver or the next explicit update redraws when space is available.
         return;
       }
       const ratio=Math.max(1,Math.min(2,global.devicePixelRatio||1));

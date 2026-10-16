@@ -4,6 +4,39 @@ const Charts=(()=>{
   let largeChart=null;
   let lastModel=null;
 
+  function buildIntersectionDataset(net, accumulated){
+    let bestIndex=-1;
+    let bestGap=Number.POSITIVE_INFINITY;
+    for(let i=0;i<net.length;i++){
+      const gap=Math.abs(net[i]-accumulated[i]);
+      if(gap<bestGap){bestGap=gap;bestIndex=i;}
+      if(i>0){
+        const prev=net[i-1]-accumulated[i-1];
+        const curr=net[i]-accumulated[i];
+        if(prev===0){bestIndex=i-1;break;}
+        if(curr===0){bestIndex=i;break;}
+        if(prev*curr<0){
+          bestIndex=Math.abs(prev)<Math.abs(curr)?i-1:i;
+          break;
+        }
+      }
+    }
+    const data=net.map(()=>null);
+    if(bestIndex>=0 && Number.isFinite(bestGap)) data[bestIndex]=(net[bestIndex]+accumulated[bestIndex])/2;
+    return {
+      label:Localization.t('intersectionPoint')||'Intersection',
+      data,
+      borderColor:'#d92d20',
+      backgroundColor:'#d92d20',
+      pointRadius:0,
+      pointHoverRadius:0,
+      borderWidth:0,
+      showLine:false,
+      hitRadius:0,
+      metaOnly:true
+    };
+  }
+
   function buildConfig(model){
     const months=model.months.filter(x=>x.index>1);
     const labels=months.map((m,i)=>String(i+1));
@@ -113,5 +146,5 @@ const Charts=(()=>{
     document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
   }
 
-  return{render,openModal,closeModal};
+  return{render,openModal,closeModal,buildConfig};
 })();

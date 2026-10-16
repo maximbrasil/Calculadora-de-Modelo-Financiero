@@ -1,0 +1,11 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const root=path.resolve(process.argv[2]||require('path').join(__dirname,'..'));
+const ctx=vm.createContext({console,window:{},document:{addEventListener:()=>{}},Localization:{t:x=>x}});
+for(const f of ['financial-engine.js','ui-renderer.js'])vm.runInContext(fs.readFileSync(path.join(root,f),'utf8'),ctx);
+const E=vm.runInContext('FinancialEngine',ctx),U=vm.runInContext('UIRenderer',ctx);
+const m=E.calculate({expenseRows:[{id:'rent',name:'Office rent',amount:1000,showInModel:true}]});
+const rows=U.getTableRows(m);assert(rows.find(x=>x.label==='Office rent'));
+const data=U.getDetailedTableData(m);assert(data.months.length===13);
+const expenses=data.sections.find(x=>x.id==='expenses');const rent=expenses.rows.find(x=>x.label==='Office rent');
+assert(rent&&rent.values.slice(1).every(x=>x.display==='1.000'));
+console.log(JSON.stringify({status:'PASS',desktopCustomExpense:true,mobileCustomExpense:true,displayMonths:data.months.length}));

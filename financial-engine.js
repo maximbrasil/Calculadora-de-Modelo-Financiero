@@ -1,8 +1,20 @@
 'use strict';
 const FinancialEngine=(()=>{
   const monthKeys=['setup','preparation',...Array.from({length:12},(_,i)=>`m${i+1}`)];
-  const DEFAULT_RIDES_DISTRIBUTION=[8,12,18,24,32,40,50,60,72,84,92,100];
-  function n(v){return Number(v)||0}
+  const marketingPresets={
+    balanced:[14,13,12,10,9,8,7,6,6,5,5,5],
+    launchHeavy:[16,14,12,10,8,8,7,6,5,5,5,4],
+    growth:[2,3,4,5,6,7,8,10,12,13,14,16],
+    manual:null
+  };
+  const ridesPresets={
+    balanced:[8,12,18,24,32,40,50,60,72,84,92,100],
+    slow:[3,6,10,15,22,30,40,52,64,76,88,100],
+    aggressive:[16,24,34,45,56,66,75,83,90,95,98,100],
+    manual:null
+  };
+  function n(v){const value=Number(v);return Number.isFinite(value)?value:0}
+  function uid(){return 'ex_'+Math.random().toString(36).slice(2,9)}
   function clone(x){return JSON.parse(JSON.stringify(x))}
   function roundTo(value, step){return Math.round(n(value)/step)*step}
   function clamp(value,min,max){return Math.min(max,Math.max(min,value))}
@@ -232,7 +244,8 @@ const FinancialEngine=(()=>{
     const order=raw.map((value,index)=>({index,remainder:value-budgets[index]}))
       .sort((a,b)=>b.remainder-a.remainder||a.index-b.index);
     let cursor=0;
-    while(remaining>=100-1e-9){
+    // At most one block per month; also bounds work for extreme floating-point inputs.
+    while(remaining>=100-1e-9&&cursor<order.length){
       budgets[order[cursor%order.length].index]+=100;
       remaining-=100;
       cursor++;
@@ -240,14 +253,30 @@ const FinancialEngine=(()=>{
     if(remaining>1e-9)budgets[order[cursor%order.length].index]+=remaining;
     return budgets.map(value=>Math.max(0,value));
   }
+  function defaultExpenseRows(monthly=10000){return[{id:'assistente',name:'Assistente',amount:0,removable:false,showInModel:true,fixedType:'assistant'},{id:'other_costs',name:'Other Costs',amount:0,removable:false,showInModel:false,hidden:true}]}
   function normPctArray(arr,fallback){
     const src=Array.isArray(arr)&&arr.length===12?arr:fallback;
     return src.map(v=>Math.max(0,n(v)));
   }
   function normalizeAssumptions(input={}){
     const a={...defaultAssumptions(),...input};
+    delete a.adminCost;
+    delete a.activeUsers;
+    if(!Array.isArray(a.expenseRows)||!a.expenseRows.length){a.expenseRows=defaultExpenseRows(a.otherCost||a.operatingExpenses||10000)}
+    a.expenseRows=a.expenseRows.map((r,i)=>({
+      id:r.id||uid(),
+      name:String(r.name||`Expense ${i+1}`),
+      amount:r.id==='other_costs'?0:Math.max(0,n(r.amount)),
+      showInModel:r.id==='assistente'?true:(r.id==='other_costs'?false:r.showInModel!==false),
+      removable:r.id==='assistente'?false:r.removable!==false,
+      hidden:r.id==='other_costs'?true:!!r.hidden,
+      fixedType:r.id==='assistente'?'assistant':(r.fixedType||null)
+    }));
+    if(!a.expenseRows.some(r=>r.id==='assistente')){a.expenseRows.unshift({id:'assistente',name:'Assistente',amount:0,removable:false,showInModel:true,fixedType:'assistant'})} 
+    a.expenseRows=a.expenseRows.map(r=>r.id==='assistente'?{...r,name:'Assistente',amount:0,removable:false,showInModel:true,fixedType:'assistant'}:(r.id==='other_costs'?{...r,name:'Other Costs',amount:0,showInModel:false,hidden:true}:r));
     const cityPopulation=Math.max(0,n(a.population));
     a.population=cityPopulation;
+    a.initialInvestment=Math.max(0,n(a.initialInvestment));
     a.areaKm2=Math.max(0,n(a.areaKm2));
     a.censusPopulation2022=Math.max(0,n(a.censusPopulation2022));
     a.density=Math.max(0,n(a.density));
@@ -288,9 +317,23 @@ const FinancialEngine=(()=>{
     a.recommendedAverageFare=recommendedFare;
     a.recommendedCommission=recommendedCommission;
     a.advertisingPackage=advertisingPackageForPopulation(a.modelPopulation);
-    a.ridesDistribution=normPctArray(a.ridesDistribution,DEFAULT_RIDES_DISTRIBUTION);
+    a.marketingDistributionPreset='auto';
+    a.marketingDistribution=marketingSharesForPopulation(a.modelPopulation);
+    a.ridesDistributionPreset=a.ridesDistributionPreset||'balanced';
+    a.ridesDistribution=normPctArray(a.ridesDistribution,ridesPresets[a.ridesDistributionPreset]||ridesPresets.balanced);
+    a.percentagePopulationUsingService=recommendedDailyDemandRateForPopulation(a.modelPopulation,a);
+    a.autoPopulationUsingService=false;
+    a.revenueRules=defaultRevenueRules();
     return a;
   }
+  function defaultRevenueRules(){return[
+    {id:'rr_0',threshold:0,maximShare:0,removable:false},
+    {id:'rr_3000',threshold:3000,maximShare:10,removable:false},
+    {id:'rr_5000',threshold:5000,maximShare:15,removable:false},
+    {id:'rr_7000',threshold:7000,maximShare:20,removable:false},
+    {id:'rr_9000',threshold:9000,maximShare:25,removable:false},
+    {id:'rr_11000',threshold:11000,maximShare:30,removable:false}
+  ]}
   function technologyFeeShareForGrossRevenue(grossRevenue){
     const value=Math.max(0,n(grossRevenue));
     if(value<=3000)return 0;
@@ -316,16 +359,13 @@ const FinancialEngine=(()=>{
     const estimatedMessages=rides/SMS_RIDES_PER_MESSAGE;
     return Math.round(estimatedMessages*SMS_COST_PER_MESSAGE*100)/100;
   }
-  function defaultAssumptions(){
-    return{
-      population:100000,
-      averageFare:20,
-      commission:10,
-      marketingBudget:30000,
-      initialInvestment:10000,
-      useRecommendedValues:true,
-      ridesDistribution:clone(DEFAULT_RIDES_DISTRIBUTION)
+  function defaultAssumptions(type='base'){
+    const presets={
+      conservative:{population:100000,averageFare:18,commission:10,rideGrowth:10,marketingBudget:25000,initialInvestment:8000,operatingExpenses:1500,percentagePopulationUsingService:1,useRecommendedValues:true,expenseRows:defaultExpenseRows(1500),marketingDistributionPreset:'balanced',marketingDistribution:clone(marketingPresets.balanced),ridesDistributionPreset:'slow',ridesDistribution:clone(ridesPresets.slow)},
+      base:{population:100000,averageFare:20,commission:10,rideGrowth:18,marketingBudget:30000,initialInvestment:10000,operatingExpenses:1500,percentagePopulationUsingService:1,useRecommendedValues:true,expenseRows:defaultExpenseRows(1500),marketingDistributionPreset:'balanced',marketingDistribution:clone(marketingPresets.balanced),ridesDistributionPreset:'balanced',ridesDistribution:clone(ridesPresets.balanced)},
+      optimistic:{population:100000,averageFare:24,commission:12,rideGrowth:25,marketingBudget:40000,initialInvestment:12000,operatingExpenses:2000,percentagePopulationUsingService:2,useRecommendedValues:true,expenseRows:defaultExpenseRows(2000),marketingDistributionPreset:'growth',marketingDistribution:clone(marketingPresets.growth),ridesDistributionPreset:'aggressive',ridesDistribution:clone(ridesPresets.aggressive)}
     };
+    return clone(presets[type]||presets.base)
   }
   function calculateCore(assumptions){
     const a=normalizeAssumptions(assumptions);
@@ -354,13 +394,18 @@ const FinancialEngine=(()=>{
       const maximShare=technologyFeeShareForGrossRevenue(commissionFromRides);
       const maximRevenue=commissionFromRides*maximShare/100;
       const partner=commissionFromRides-maximRevenue;
-      const assistantExpense=i>1?assistantFeeForGrossRevenue(commissionFromRides):0;
+      const fixedExpenses={};
+      let fixedExpenseTotal=0;
+      if(i>1){
+        a.expenseRows.filter(r=>r.showInModel!==false).forEach(r=>{const val=r.fixedType==='assistant'? assistantFeeForGrossRevenue(commissionFromRides) : Math.round(n(r.amount)*100)/100;fixedExpenses[r.id]=val;fixedExpenseTotal+=val});
+      }
+      const assistantExpense=fixedExpenses.assistente||0;
       const smsEstimatedMessages=i>1?ridesPerMonth/SMS_RIDES_PER_MESSAGE:0;
       const smsExpense=i>1?smsExpenseForMonth(ridesPerMonth,commissionFromRides):0;
       // Operating expenses are the Assistant service, SMS notifications when
       // chargeable, and the service technology fee. Marketing remains classified
       // only as an investment.
-      const opEx=i>1?assistantExpense+smsExpense+maximRevenue:0;
+      const opEx=i>1?fixedExpenseTotal+smsExpense+maximRevenue:0;
       // The initial license fee is a pre-opening cash outflow. It must not be
       // charged again inside month 1. Monthly net profit therefore reflects only
       // revenue, that month's marketing investment and operating expenses.
@@ -369,12 +414,12 @@ const FinancialEngine=(()=>{
       const netCashFlow=i>1?netProfit:preOpeningCashFlow;
       accumulated+=netCashFlow;
       const margin=commissionFromRides?netProfit/commissionFromRides*100:0;
-      months.push({key:monthKeys[i],index:i,monthNo,isSetup,isPrep,targetRidesDay,competitionRampFactor:competitionRamp,investment,initialPurchase:isSetup?investment:0,marketingInvestment,ridesPerDay,ridesPerMonth,averageFare:n(a.averageFare),gross,commission:n(a.commission),commissionFromRides,grossRevenue:commissionFromRides,maximShare,revenue:maximRevenue,maximRevenue,technologyFee:maximRevenue,partnerShare:100-maximShare,partner,marketingExpense:marketingInvestment,assistantExpense,smsEstimatedMessages,smsExpense,opEx,netProfit,margin,netCashFlow,accumulated})
+      months.push({key:monthKeys[i],index:i,monthNo,isSetup,isPrep,marketingPct:i>1?n(a.marketingDistribution[mIndex]):0,ridesPct:i>1?n(a.ridesDistribution[mIndex]):0,targetRidesDay,competitionRampFactor:competitionRamp,investment,initialPurchase:isSetup?investment:0,marketingInvestment,ridesPerDay,ridesPerMonth,averageFare:n(a.averageFare),gross,commission:n(a.commission),commissionFromRides,grossRevenue:commissionFromRides,maximShare,revenue:maximRevenue,maximRevenue,technologyFee:maximRevenue,partnerShare:100-maximShare,partner,marketingExpense:marketingInvestment,assistantExpense,smsEstimatedMessages,smsExpense,fixedExpenses,opEx,netProfit,margin,netCashFlow,accumulated})
     }
     const yearMonths=months.slice(2);
     const initialPayment=n(a.initialInvestment);
     const totalMarketingInvestment=yearMonths.reduce((s,x)=>s+x.marketingInvestment,0);
-    const totalAssistantExpense=yearMonths.reduce((s,x)=>s+x.assistantExpense,0);
+    const totalAssistantExpense=yearMonths.reduce((s,x)=>s+(x.fixedExpenses?.assistente||0),0);
     const totalSmsExpense=yearMonths.reduce((s,x)=>s+x.smsExpense,0);
     const totalTechnologyFee=yearMonths.reduce((s,x)=>s+x.maximRevenue,0);
     // Projected total investment contains only the initial license fee and the
@@ -382,13 +427,17 @@ const FinancialEngine=(()=>{
     const totalInvestment=initialPayment+totalMarketingInvestment;
     const totalCommissionFromRides=yearMonths.reduce((s,x)=>s+x.commissionFromRides,0);
     const totalGrossRevenue=totalCommissionFromRides;
-    const totalOperatingExpenses=totalAssistantExpense+totalSmsExpense+totalTechnologyFee;
+    // Kept as compatibility aliases for older UI code and saved scenarios.
+    const totalRevenue=totalTechnologyFee;
+    const totalPartnerRevenue=totalGrossRevenue;
+    const totalOperatingExpenses=yearMonths.reduce((sum,month)=>sum+month.opEx,0);
+    const totalExpenses=totalOperatingExpenses;
     const averageMonthlyInvestment=totalMarketingInvestment/12;
     const netProfit=totalGrossRevenue-totalInvestment-totalOperatingExpenses;
     const roi=totalInvestment?netProfit/totalInvestment*100:0;
     const breakEven=months.find(x=>x.index>1&&x.netProfit>=0);
     const payback=months.find(x=>x.index>1&&x.accumulated>=0);
-    return{assumptions:a,months,summary:{initialPayment,totalMarketingInvestment,totalAssistantExpense,totalSmsExpense,totalTechnologyFee,totalInvestment,totalGrossRevenue,totalCommissionFromRides,totalOperatingExpenses,averageMonthlyInvestment,netProfit,roi,breakEvenPeriod:breakEven?breakEven.monthNo:null,breakEvenKey:breakEven?breakEven.key:null,paybackPeriod:payback?payback.monthNo:null,paybackKey:payback?payback.key:null,targetRidesDay,baseTargetRidesDay,baseDemandRate,budgetDemandFactor,fareDemandFactor:fareFactor,commissionFulfillmentFactor:commissionFactor,combinedDemandFactor,recommendedMarketingBudget:a.recommendedMarketingBudget,basePopulationMarketingBudget:roundTo(interpolateAnchors(demandPopulation,marketingBudgetAnchors,'budget'),500),cityPopulation:a.population,serviceAreaPopulation:a.serviceAreaPopulation,modelPopulation:demandPopulation,isMicroCityRegionalModel:a.isMicroCityRegionalModel,usesRegionalServiceArea:a.usesRegionalServiceArea,basePopulationTargetRidesDay,marketDataAvailable:marketFactors.hasEconomicData||marketFactors.hasDensityData,marketEconomicDataAvailable:marketFactors.hasEconomicData,marketDensityDataAvailable:marketFactors.hasDensityData,economicRatio:marketFactors.economicRatio,densityRatio:marketFactors.densityRatio,marketBudgetFactor:marketFactors.budgetFactor,marketDemandFactor:marketFactors.demandFactor,socioeconomicBudgetFactor:marketFactors.socioeconomicBudgetFactor,socioeconomicDemandFactor:marketFactors.socioeconomicDemandFactor,competitionLevel:marketFactors.competitionLevel,competitionConfidence:marketFactors.competitionConfidence,competitionIntensity:marketFactors.competitionIntensity,effectiveCompetition:marketFactors.effectiveCompetition,competitionDataAvailable:marketFactors.competitionDataAvailable,competitionIsPending:marketFactors.competitionIsPending,competitionUncertainty:marketFactors.competitionUncertainty,competitionBudgetFactor:marketFactors.competitionBudgetFactor,competitionDemandFactor:marketFactors.competitionDemandFactor,uncertaintyBudgetFactor:marketFactors.uncertaintyBudgetFactor,uncertaintyDemandFactor:marketFactors.uncertaintyDemandFactor,competitionMonth1RampFactor:competitionRampFactor(a,0),areaKm2:a.areaKm2,density:a.density,gdpPerCapita:a.gdpPerCapita,idhm:a.idhm,schoolEnrollment:a.schoolEnrollment}}
+    return{assumptions:a,months,summary:{initialPayment,totalMarketingInvestment,totalAssistantExpense,totalSmsExpense,totalTechnologyFee,totalInvestment,totalRevenue,totalPartnerRevenue,totalGrossRevenue,totalCommissionFromRides,totalOperatingExpenses,totalExpenses,averageMonthlyInvestment,netProfit,roi,breakEvenPeriod:breakEven?breakEven.monthNo:null,breakEvenKey:breakEven?breakEven.key:null,paybackPeriod:payback?payback.monthNo:null,paybackKey:payback?payback.key:null,targetRidesDay,baseTargetRidesDay,baseDemandRate,budgetDemandFactor,fareDemandFactor:fareFactor,commissionFulfillmentFactor:commissionFactor,combinedDemandFactor,recommendedMarketingBudget:a.recommendedMarketingBudget,basePopulationMarketingBudget:roundTo(interpolateAnchors(demandPopulation,marketingBudgetAnchors,'budget'),500),cityPopulation:a.population,serviceAreaPopulation:a.serviceAreaPopulation,modelPopulation:demandPopulation,isMicroCityRegionalModel:a.isMicroCityRegionalModel,usesRegionalServiceArea:a.usesRegionalServiceArea,basePopulationTargetRidesDay,marketDataAvailable:marketFactors.hasEconomicData||marketFactors.hasDensityData,marketEconomicDataAvailable:marketFactors.hasEconomicData,marketDensityDataAvailable:marketFactors.hasDensityData,economicRatio:marketFactors.economicRatio,densityRatio:marketFactors.densityRatio,marketBudgetFactor:marketFactors.budgetFactor,marketDemandFactor:marketFactors.demandFactor,socioeconomicBudgetFactor:marketFactors.socioeconomicBudgetFactor,socioeconomicDemandFactor:marketFactors.socioeconomicDemandFactor,competitionLevel:marketFactors.competitionLevel,competitionConfidence:marketFactors.competitionConfidence,competitionIntensity:marketFactors.competitionIntensity,effectiveCompetition:marketFactors.effectiveCompetition,competitionDataAvailable:marketFactors.competitionDataAvailable,competitionIsPending:marketFactors.competitionIsPending,competitionUncertainty:marketFactors.competitionUncertainty,competitionBudgetFactor:marketFactors.competitionBudgetFactor,competitionDemandFactor:marketFactors.competitionDemandFactor,uncertaintyBudgetFactor:marketFactors.uncertaintyBudgetFactor,uncertaintyDemandFactor:marketFactors.uncertaintyDemandFactor,competitionMonth1RampFactor:competitionRampFactor(a,0),areaKm2:a.areaKm2,density:a.density,gdpPerCapita:a.gdpPerCapita,idhm:a.idhm,schoolEnrollment:a.schoolEnrollment}}
   }
   function calculate(assumptions){
     return calculateCore(normalizeAssumptions(assumptions));
@@ -412,5 +461,13 @@ const FinancialEngine=(()=>{
   function formatCurrencyFull(v){return `${n(v)<0?'-':''}R$ ${formatMoney(Math.abs(n(v)),false)}`}
   function formatCurrencyCompact(v){return `${n(v)<0?'-':''}R$ ${formatMoney(Math.abs(n(v)),true)}`}
   function formatPercent(v){return `${Math.round(v)}%`}
-  return{calculate,defaultAssumptions,normalizeAssumptions,formatMoney,formatCurrencyFull,formatCurrencyCompact,formatPercent,monthKeys,advertisingPackageForPopulation,annualMarketingBudgetForPopulation,marketingBudgetAnchors,recommendedAverageFareForPopulation,recommendedCommissionForPopulation,recommendedDailyDemandRateForPopulation,demandTargetAnchors,investmentDemandFactor,fareDemandFactor,commissionFulfillmentFactor,marketingSharesForPopulation,monthlyMarketingBudgets,cityMarketFactors,competitionFactors,competitionRampFactor,isMicroCityPopulation,recommendedServiceAreaPopulation,MICRO_CITY_MAX_POPULATION,MICRO_CITY_MIN_SERVICE_AREA_POPULATION,MIN_DRIVER_COMMISSION,RECOMMENDED_DRIVER_COMMISSION,MAX_DRIVER_COMMISSION,MAX_AVERAGE_FARE,technologyFeeShareForGrossRevenue,assistantFeeForGrossRevenue,smsExpenseForMonth,SMS_COST_PER_MESSAGE,SMS_RIDES_PER_MESSAGE,SMS_FREE_GROSS_REVENUE_THRESHOLD}
+  function createExpenseRow(name='New Expense',amount=0){return{id:uid(),name,amount,removable:true,showInModel:true}}
+  function createRevenueRule(threshold=0,maximShare=100){return{id:uid(),threshold, maximShare, removable:true}}
+  function applyPreset(assumptions,type,preset){
+    const a=normalizeAssumptions(assumptions);
+    if(type==='marketing'&&marketingPresets[preset]){a.marketingDistributionPreset=preset;a.marketingDistribution=clone(marketingPresets[preset])}
+    if(type==='rides'&&ridesPresets[preset]){a.ridesDistributionPreset=preset;a.ridesDistribution=clone(ridesPresets[preset])}
+    return a;
+  }
+  return{calculate,defaultAssumptions,normalizeAssumptions,createExpenseRow,createRevenueRule,formatMoney,formatCurrencyFull,formatCurrencyCompact,formatPercent,monthKeys,marketingPresets,ridesPresets,applyPreset,advertisingPackageForPopulation,annualMarketingBudgetForPopulation,marketingBudgetAnchors,recommendedAverageFareForPopulation,recommendedCommissionForPopulation,recommendedDailyDemandRateForPopulation,demandTargetAnchors,investmentDemandFactor,fareDemandFactor,commissionFulfillmentFactor,marketingSharesForPopulation,monthlyMarketingBudgets,cityMarketFactors,competitionFactors,competitionRampFactor,isMicroCityPopulation,recommendedServiceAreaPopulation,MICRO_CITY_MAX_POPULATION,MICRO_CITY_MIN_SERVICE_AREA_POPULATION,MIN_DRIVER_COMMISSION,RECOMMENDED_DRIVER_COMMISSION,MAX_DRIVER_COMMISSION,MAX_AVERAGE_FARE,technologyFeeShareForGrossRevenue,assistantFeeForGrossRevenue,smsExpenseForMonth,SMS_COST_PER_MESSAGE,SMS_RIDES_PER_MESSAGE,SMS_FREE_GROSS_REVENUE_THRESHOLD}
 })();

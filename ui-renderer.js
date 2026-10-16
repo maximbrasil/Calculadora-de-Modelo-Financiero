@@ -55,6 +55,7 @@ const UIRenderer=(()=>{
       {section:'expenses',icon:'headset',title:'operatingExpenses',label:'assistente',value:m=>m.assistantExpense,fmt:tableMoney,moneyLabel:true},
       {section:'expenses',icon:'sms',label:'smsNotifications',value:m=>m.smsExpense,fmt:tableMoney,moneyLabel:true},
       {section:'expenses',icon:'pie',label:'maximRevenue',value:m=>m.maximRevenue,fmt:tableMoney,moneyLabel:true},
+      ...(model.assumptions.expenseRows||[]).filter(r=>r.showInModel!==false&&r.id!=='assistente').map(r=>({section:'expenses',icon:'briefcase',labelText:r.name,value:m=>m.fixedExpenses[r.id]||0,fmt:tableMoney,moneyLabel:true})),
       {section:'expenses',icon:'calculator',label:'totalOperatingExpenses',value:m=>m.opEx,fmt:tableMoney,subtotal:true,total:true,moneyLabel:true},
       {section:'profit',icon:'profit',title:'profitCash',label:'netProfit',value:m=>m.netProfit,fmt:tableMoney,subtotal:true,total:true,sign:true,moneyLabel:true},
       {section:'profit',icon:'balance',label:'accumulatedCashFlow',value:m=>m.accumulated,fmt:tableMoney,subtotal:true,total:true,sign:true,moneyLabel:true}
@@ -70,6 +71,8 @@ const UIRenderer=(()=>{
     const numericKeys=['investment','initialPurchase','marketingInvestment','netProfit','netCashFlow'];
     numericKeys.forEach(k=>{combined[k]=(setup?.[k]||0)+(preparation?.[k]||0)});
     combined.accumulated=preparation?.accumulated ?? setup?.accumulated ?? 0;
+    combined.marketingPct=0;
+    combined.ridesPct=0;
     return [combined,...model.months.slice(2)];
   }
   function shouldBlankCombined(row,m){return m.isCombinedPreOpening&&(['operations','revenue','expenses'].includes(row.section)||(row.section==='profit'&&row.label==='netProfit'))}
@@ -154,6 +157,37 @@ const UIRenderer=(()=>{
   function populateSectionHelp(section){
     const modal=document.getElementById('sectionHelpModal');
     if(!modal||!currentModel)return;
+    if(section==='roi'||section==='payback'){
+      const pt=Localization.getLanguage()==='pt-BR';
+      const title=section==='roi'?(pt?'ROI — 12 meses':'ROI — 12 months'):(pt?'Prazo de retorno':'Payback period');
+      const iconName=section==='roi'?'roi':'calendar';
+      const eyebrowEl=document.getElementById('sectionHelpEyebrow');
+      const titleEl=document.getElementById('sectionHelpTitle');
+      const subtitleEl=document.getElementById('sectionHelpSubtitle');
+      const iconEl=document.getElementById('sectionHelpIcon');
+      const currencyEl=document.getElementById('sectionHelpCurrency');
+      const listEl=document.getElementById('sectionHelpList');
+      if(eyebrowEl)eyebrowEl.textContent=Localization.t('sectionHelpEyebrow');
+      if(titleEl)titleEl.textContent=title;
+      if(subtitleEl)subtitleEl.textContent=pt?'Como interpretar este indicador no business case atual.':'How to interpret this indicator in the current business case.';
+      if(iconEl)iconEl.innerHTML=icon(iconName);
+      if(currencyEl){currencyEl.hidden=true;currencyEl.textContent='';}
+      const s=currentModel.summary||{};
+      let body='';
+      if(section==='roi'){
+        body=pt
+          ? `O ROI de 12 meses compara o lucro líquido projetado no período com o investimento total projetado. Neste cenário, o investimento é ${money(s.totalInvestment||0)}, o lucro líquido projetado é ${money(s.netProfit||0)} e o ROI calculado é ${Math.round(Number(s.roi)||0)}%. Um ROI positivo indica retorno acima do valor investido; ele não representa garantia de resultado real.`
+          : `The 12-month ROI compares projected net profit for the period with projected total investment. In this scenario, investment is ${money(s.totalInvestment||0)}, projected net profit is ${money(s.netProfit||0)}, and calculated ROI is ${Math.round(Number(s.roi)||0)}%. A positive ROI indicates a return above the invested amount; it is not a guarantee of actual results.`;
+      }else{
+        const pb=s.paybackPeriod;
+        body=pt
+          ? (pb?`Prazo de retorno é o primeiro mês em que o resultado acumulado do projeto deixa de ser negativo. Neste cenário, a recuperação integral do investimento é estimada para o mês ${pb}.`:'Prazo de retorno é o primeiro mês em que o resultado acumulado do projeto deixa de ser negativo. Neste cenário, o investimento não é recuperado dentro dos 12 meses projetados.')
+          : (pb?`Payback period is the first month when the project's accumulated result is no longer negative. In this scenario, full investment recovery is estimated in month ${pb}.`:'Payback period is the first month when the project’s accumulated result is no longer negative. In this scenario, the investment is not recovered within the 12-month projection.');
+      }
+      if(listEl)listEl.innerHTML=`<article class="section-help-item"><div class="section-help-item-icon" aria-hidden="true">${icon(iconName)}</div><div class="section-help-item-copy"><h3>${esc(title)}</h3><p>${helpTextToHtml(body)}</p></div></article>`;
+      modal.dataset.section=section;
+      return;
+    }
     const rows=tableRows(currentModel);
     const sectionRow=rows.find(row=>row.section===section&&row.title)||rows.find(row=>row.section===section);
     const title=Localization.t(sectionRow?.title||section);
@@ -203,7 +237,8 @@ const UIRenderer=(()=>{
       {file:'moto-uniform.jpg',titleKey:'advertisingUniformTitle',textKey:'advertisingUniformText',zoom:true,cls:'uniform'},
       {file:'outdoor.jpg',titleKey:'advertisingOutdoorTitle',textKey:'advertisingOutdoorText',zoom:false,cls:'outdoor privacy-crop'},
       {file:'printed-materials.jpg',titleKey:'advertisingPrintTitle',textKey:'advertisingPrintText',zoom:false,cls:'print privacy-crop'},
-      {file:'promotional-action.jpg',titleKey:'advertisingPromoTitle',textKey:'advertisingPromoText',zoom:true,cls:'promo'}
+      {file:'promotional-action.jpg',titleKey:'advertisingPromoTitle',textKey:'advertisingPromoText',zoom:true,cls:'promo'},
+      {file:'motoparade.jpg',titleKey:'advertisingMotoparadeTitle',textKey:'advertisingMotoparadeText',zoom:true,cls:'motoparade'}
     ];
     return items.map(item=>{const title=Localization.t(item.titleKey);const image=`assets/advertising/${item.file}`;const media=item.zoom?`<button class="advertising-example-image-button" type="button" data-advertising-image="${image}" data-advertising-title="${esc(title)}" aria-label="${esc(Localization.t('advertisingPhotoAlt',{title}))}"><img src="${image}" alt="${esc(Localization.t('advertisingPhotoAlt',{title}))}" loading="lazy"></button>`:`<div class="advertising-example-image-static" aria-hidden="true"><img src="${image}" alt="" loading="lazy"></div>`;return `<article class="advertising-example-card ${item.cls}">${media}<div class="advertising-example-copy"><h3>${esc(title)}</h3><p>${esc(Localization.t(item.textKey))}</p></div></article>`;}).join('');
   }
@@ -254,41 +289,17 @@ const UIRenderer=(()=>{
     }
     items.forEach(i=>Animation.animateNumber(document.getElementById('kpi-'+i.k),i.k,i.val,i.fmt));
   }
-  function renderTable(model){
-    const tbl=document.getElementById('modelTable');
-    const displayMonths=getDisplayMonths(model);
-    const heads=[Localization.t('setupPreparation'),...Array.from({length:12},(_,i)=>i+1)];
-    const rows=tableRows(model);
-    const colgroup='<colgroup><col class="col-section"><col class="col-metric">'+heads.map(()=>'<col class="col-period">').join('')+'</colgroup>';
-    let html=`${colgroup}<thead><tr class="phase"><th colspan="2"></th><th colspan="1">${Localization.t('preOpening')}</th><th colspan="12">${Localization.t('growthPhase')}</th></tr><tr><th>${Localization.t('section')}</th><th>${Localization.t('indicator')}</th>${heads.map((h,i)=>`<th class="${model.summary.paybackKey===displayMonths[i]?.key?'breakeven':''}">${h}</th>`).join('')}</tr></thead><tbody>`;
-    let last='';
-    rows.forEach(row=>{
-      const first=row.section!==last;last=row.section;
-      const rowCls=[row.total?'table-total-row':'',row.financial?'table-financial-row':''].filter(Boolean).join(' ');
-      html+=`<tr${rowCls?` class="${rowCls}"`:''}>${first?`<td class="row-label section-name section-title table-section-title ${row.section}" rowspan="${rows.filter(r=>r.section===row.section).length}">${sectionTitleHtml(row)}</td>`:''}<td class="row-label metric-name table-row-label ${row.section}">${esc(tableRowLabel(row))}</td>`;
-      displayMonths.forEach(m=>{
-        const val=row.value(m);
-        const blankCombined=shouldBlankCombined(row,m);
-        const empty=blankCombined||((m.isPrep||m.isSetup)&&val===0&&!['netCashFlow','accumulatedCashFlow'].includes(row.label));
-        const cls=['table-cell',row.total?'table-total-cell':'',row.financial?'table-financial-cell':'',row.subtotal?'subtotal':'',row.sign?(val<0?'negative':val>0?'positive':''):'',model.summary.paybackKey===m.key?'breakeven':'',empty?'muted-cell':''].filter(Boolean).join(' ');
-        html+=`<td data-recalc class="${cls}">${empty?'':row.fmt(val)}</td>`;
-      });
-      html+='</tr>';
-    });
-    html+='</tbody>';
-    tbl.innerHTML=html;
-  }
-
+  function renderTable(model){const tbl=document.getElementById('modelTable');const displayMonths=getDisplayMonths(model);const heads=[Localization.t('setupPreparation'),...Array.from({length:12},(_,i)=>i+1)];const rows=tableRows(model);const colgroup='<colgroup><col class="col-section"><col class="col-metric">'+heads.map(()=>'<col class="col-period">').join('')+'</colgroup>';let html=`${colgroup}<thead><tr class="phase"><th colspan="2"></th><th colspan="1">${Localization.t('preOpening')}</th><th colspan="12">${Localization.t('growthPhase')}</th></tr><tr><th>${Localization.t('section')}</th><th>${Localization.t('indicator')}</th>${heads.map((h,i)=>`<th class="${model.summary.paybackKey===displayMonths[i]?.key?'breakeven':''}">${h}</th>`).join('')}</tr></thead><tbody>`;let last='';rows.forEach(row=>{const first=row.section!==last;last=row.section;const rowCls=[row.total?'table-total-row':'',row.financial?'table-financial-row':''].filter(Boolean).join(' ');html+=`<tr${rowCls?` class="${rowCls}"`:''}>${first?`<td class="row-label section-name section-title table-section-title ${row.section}" rowspan="${rows.filter(r=>r.section===row.section).length}">${sectionTitleHtml(row)}</td>`:''}<td class="row-label metric-name table-row-label ${row.section}">${esc(tableRowLabel(row))}</td>`;displayMonths.forEach(m=>{const val=row.value(m);const blankCombined=shouldBlankCombined(row,m);const empty=blankCombined||((m.isPrep||m.isSetup)&&val===0&&!['netCashFlow','accumulatedCashFlow'].includes(row.label));const editable=(row.marketingEditable||row.ridesEditable)&&!empty&&!m.isCombinedPreOpening;const cls=['table-cell',row.total?'table-total-cell':'',row.financial?'table-financial-cell':'',row.subtotal?'subtotal':'',row.sign?(val<0?'negative':val>0?'positive':''):'',model.summary.paybackKey===m.key?'breakeven':'',empty?'muted-cell':'',editable?'editable-month-cell':''].filter(Boolean).join(' ');let data='';if(row.marketingEditable&&editable)data=` data-month-edit="marketing" data-month-no="${m.monthNo}" data-current-pct="${m.marketingPct}" title="Double click to edit % of Marketing Budget"`;if(row.ridesEditable&&editable)data=` data-month-edit="rides" data-month-no="${m.monthNo}" data-current-pct="${m.ridesPct}" title="Double click to edit % of month 12 orders"`;let content=empty?'':row.fmt(val);if(editable)content=`<div class="cell-absolute">${row.fmt(val)}</div>`;html+=`<td data-recalc class="${cls}"${data}>${content}</td>`});html+='</tr>'});html+='</tbody>';tbl.innerHTML=html}
   function renderSummary(model){
     const header=document.querySelector('.summary-card h3');
-    if(header){header.innerHTML=`<span>${Localization.t('summary12')}</span>${infoTooltip(Localization.t('summary12Tooltip'),'summary-title-tooltip')}`;}
+    if(header)header.textContent=Localization.t('summary12');
     const rows=[['totalInvestment',model.summary.totalInvestment,'currency'],['grossRevenue',model.summary.totalGrossRevenue,'currency'],['totalOperatingExpenses',model.summary.totalOperatingExpenses,'currency'],['netProfit',model.summary.netProfit,'currency'],['roi12',model.summary.roi,'%'],['paybackPeriod',model.summary.paybackPeriod?Localization.t('month')+' '+model.summary.paybackPeriod:Localization.t('notAchieved12'),'']];
     document.getElementById('summaryList').innerHTML=rows.map(r=>{
-      const cls=r[0]==='totalOperatingExpenses'?'summary-expense-row':(r[0]==='totalInvestment'?'summary-investment-row':'');
+      const cls=r[0]==='totalOperatingExpenses'?'summary-expense-row':(r[0]==='totalInvestment'?'summary-investment-row':(r[0]==='netProfit'?'summary-profit-row':''));
       const value=typeof r[1]==='number'?(r[2]==='%'?Math.round(r[1])+'%':money(r[1])):r[1];
       const labelKey=r[0]==='totalOperatingExpenses'?'summaryOperatingExpenses':r[0];
       return `<div class="summary-row ${cls}"><span>${Localization.t(labelKey)}</span><span>${value}</span></div>`;
-    }).join('')+`<div class="summary-tax-disclaimer">${esc(Localization.t('taxDisclaimer'))}</div>`;
+    }).join('')+`<div class="summary-explanation">${esc(Localization.t('scenarioProjectionNote'))}</div><div class="summary-tax-disclaimer">${esc(Localization.t('taxDisclaimer'))}</div>`;
   }
   function getInsightRows(model){
     const a=model.assumptions||{};
@@ -406,36 +417,49 @@ const UIRenderer=(()=>{
       renderedTitle:Localization.t(row.title),
       renderedText:Localization.t(row.text,row.vars||{})
     }));
-    const totalLength=renderedRows.reduce((sum,row)=>sum+row.renderedTitle.length+row.renderedText.length,0);
-    const longestText=renderedRows.reduce((max,row)=>Math.max(max,row.renderedText.length),0);
-    list.dataset.density=(totalLength>760||longestText>250)?'very-dense':((totalLength>570||longestText>190)?'dense':'normal');
+    // Summaries retain the exact source wording; the full explanation opens in a dialog.
+    list.removeAttribute('data-density');
     list.removeAttribute('data-fit');
-    list.innerHTML=renderedRows.map(row=>`<div class="insight" data-tone="${row.tone||'neutral'}"><div class="insight-badge">${icon(row.icon)}</div><div><div class="insight-title">${row.renderedTitle}</div><div class="insight-text">${row.renderedText}</div></div></div>`).join('');
-    requestAnimationFrame(()=>{
-      if(!list.isConnected||!list.clientHeight)return;
-      const levels=['normal','dense','very-dense'];
-      let idx=Math.max(0,levels.indexOf(list.dataset.density||'normal'));
-      const overflows=()=>list.scrollHeight>list.clientHeight+1;
-      while(idx<levels.length-1&&overflows()){
-        idx+=1;
-        list.dataset.density=levels[idx];
-        void list.offsetHeight;
-      }
-      if(overflows()){
-        list.dataset.fit='tight';
-        void list.offsetHeight;
-      }
-      if(overflows())list.dataset.fit='scroll';
-    });
+    const brief=text=>{const sentence=text.split(/(?<=[.!?])\s+/)[0];return sentence.length>110?sentence.slice(0,107).replace(/\s+\S*$/,'')+'…':sentence;};
+    list.innerHTML=renderedRows.map(row=>`<div class="insight" data-tone="${row.tone||'neutral'}"><div class="insight-badge">${icon(row.icon)}</div><div class="insight-copy"><div class="insight-title">${esc(row.renderedTitle)}</div><div class="insight-text">${esc(brief(row.renderedText))}</div><button type="button" class="insight-more" data-insight-detail aria-label="${esc(Localization.t('sectionHelpAction')+': '+row.renderedTitle)}"><span aria-hidden="true">ⓘ</span></button><template class="insight-full"><p>${esc(row.renderedText)}</p></template></div></div>`).join('');
   }
+  const basic=['marketingBudget'];
+  function inputLabel(k){if(k==='averageFare')return Localization.t('averageRidePrice');if(k==='commission')return Localization.t('commissionFromCompletedRidesPct');if(k==='initialInvestment')return Localization.t('initialInvestmentInput');return Localization.t(k)}
+  function renderInputs(state,errors){
+    const gridEl=document.getElementById('inputsGrid');
+    const panel=document.getElementById('validationPanel');
+    if(!gridEl){return}
+    const normalized=FinancialEngine.normalizeAssumptions(state.activeScenario.assumptions);state.activeScenario.assumptions=normalized;
+    const currencyHtml=`<div class="input-row fixed-currency-row"><label>${Localization.t('currency')}</label><strong>R$</strong></div>`;
+    const formHtml=basic.map(k=>`<div class="input-row ${errors[k]?'invalid':''}"><label for="input-${k}">${labelWithCurrency(inputLabel(k))}</label><input id="input-${k}" data-input="${k}" type="number" step="${['commission','percentagePopulationUsingService'].includes(k)?'0.01':'1'}" value="${normalized[k]}"></div>`).join('');
+    const presetManager=`<div class="preset-manager"><div class="preset-row"><label>${Localization.t('marketingDistributionPreset')}</label><select data-preset="marketing"><option value="balanced" ${normalized.marketingDistributionPreset==='balanced'?'selected':''}>Balanced</option><option value="launchHeavy" ${normalized.marketingDistributionPreset==='launchHeavy'?'selected':''}>Launch heavy</option><option value="growth" ${normalized.marketingDistributionPreset==='growth'?'selected':''}>Growth</option><option value="manual" ${normalized.marketingDistributionPreset==='manual'?'selected':''}>Manual</option></select></div><div class="preset-row"><label>${Localization.t('ridesDistributionPreset')}</label><select data-preset="rides"><option value="balanced" ${normalized.ridesDistributionPreset==='balanced'?'selected':''}>Balanced</option><option value="slow" ${normalized.ridesDistributionPreset==='slow'?'selected':''}>Slow build</option><option value="aggressive" ${normalized.ridesDistributionPreset==='aggressive'?'selected':''}>Aggressive</option><option value="manual" ${normalized.ridesDistributionPreset==='manual'?'selected':''}>Manual</option></select></div><div class="preset-hint">${Localization.t('presetHint')}</div></div>`;
+    const expenseRows=(normalized.expenseRows||[]).filter(r=>!r.hidden&&r.id!=='other_costs').map(r=>{
+      const fixed=r.fixedType==='assistant'||r.id==='assistente';
+      return `<div class="expense-edit-row"><label class="expense-visible-toggle"><input type="checkbox" data-expense-visible="${r.id}" ${r.showInModel!==false?'checked':''} ${fixed?'disabled':''}> ${Localization.t('show')}</label><input class="expense-name" data-expense-name="${r.id}" value="${esc(fixed?Localization.t('assistente'):r.name)}" aria-label="${esc(Localization.t('expenseName'))}" ${fixed?'disabled':''}><input class="expense-amount" type="${fixed?'text':'number'}" data-expense-amount="${r.id}" value="${fixed?'250 / 500':r.amount}" aria-label="${esc(Localization.t('expenseAmount'))}" ${fixed?'disabled':''}><button class="btn danger expense-delete" data-expense-delete="${r.id}" ${r.removable===false?'disabled':''}>×</button></div>`
+    }).join('');
+    const expenseManager=`<div class="expense-manager"><div class="expense-manager-head"><strong>${Localization.t('operatingExpenses')}</strong><button class="btn secondary" id="addExpenseRow" type="button">${Localization.t('addRow')}</button></div>${expenseRows}</div>`;
+    const revenueRules=(normalized.revenueRules||[]).map(r=>`<div class="revenue-rule-row"><span>${Localization.t('feeFrom')}</span><input type="number" data-rule-threshold="${r.id}" value="${r.threshold}"><span>${activeCurrency}</span><span>=</span><input type="number" data-rule-share="${r.id}" value="${r.maximShare}" min="0" max="100"><span>%</span><button class="btn danger revenue-rule-delete" data-rule-delete="${r.id}" ${r.removable===false?'disabled':''}>×</button></div>`).join('');
+    const ruleManager=`<div class="revenue-rule-manager"><div class="expense-manager-head"><strong>${Localization.t('revenueDistributionRules')}</strong><button class="btn secondary" id="addRevenueRule" type="button">${Localization.t('addRule')}</button></div>${revenueRules}<div class="preset-hint">${Localization.t('revenueRulesHint')}</div></div>`;
+    gridEl.innerHTML=formHtml+(state.advanced?'<div class="advanced-title">'+Localization.t('advancedSettings')+'</div>'+currencyHtml+presetManager:'');
+    const list=Object.values(errors);if(panel){panel.hidden=!list.length;panel.innerHTML=list.join('<br>')}
+  }
+  function renderLegend(){const legendEl=document.getElementById('legendList');if(!legendEl)return;legendEl.innerHTML=`<div class="legend-list"><div class="legend-item"><span class="swatch investment"></span>${Localization.t('investmentLegend')}</div><div class="legend-item"><span class="swatch operations"></span>${Localization.t('operationsLegend')}</div><div class="legend-item"><span class="swatch expenses"></span>${Localization.t('expensesLegend')}</div><div class="legend-item"><span class="swatch profit"></span>${Localization.t('profitLegend')}</div></div>`}
+  function renderScenarioSelect(state){const sel=document.getElementById('scenarioSelect');if(!sel)return;sel.innerHTML=`<option value="base">Reference demand scenario</option>`;sel.value='base';}
   function renderAll(state,model,errors={}){
     activeCurrency='R$';
     currentModel=model;
     Localization.setLanguage(state.language);
+    const languageSelect=document.getElementById('languageSelect');
+    if(languageSelect)languageSelect.value=state.language;
+    const modeToggle=document.getElementById('modeToggle');
+    if(modeToggle)modeToggle.textContent=Localization.t(state.advanced?'basicSettings':'advancedSettings');
     renderKpis(model,state);
     renderTable(model);
     renderSummary(model);
     renderInsights(model);
+    renderLegend();
+    const notesArea=document.getElementById('notesArea');
+    if(notesArea)notesArea.value=state.activeScenario.notes||'';
     Charts.render(model);
     if(activeHelpSection)populateSectionHelp(activeHelpSection);
     setTimeout(Animation.flashCells,10);

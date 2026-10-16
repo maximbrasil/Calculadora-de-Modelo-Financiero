@@ -1,20 +1,2 @@
 'use strict';
-const Validation=(()=>{
-  const rules={
-    population:v=>v>0||'validationPopulation',
-    averageFare:v=>v>0&&v<=30||'validationFare',
-    commission:v=>v>=10&&v<=20||'validationCommission',
-    marketingBudget:v=>v>=0||'validationMarketing',
-    initialInvestment:v=>v>=0||'validationInvestment'
-  };
-  function validateAssumptions(a){
-    const errors={};
-    Object.entries(rules).forEach(([key,rule])=>{
-      const value=Number(a[key]);
-      const result=rule(value);
-      if(result!==true||Number.isNaN(value))errors[key]=Localization.t(result===true?'validationFare':result);
-    });
-    return{valid:Object.keys(errors).length===0,errors};
-  }
-  return{validateAssumptions};
-})();
+const Validation=(()=>{const rules={population:v=>v>0||'validationPopulation',averageFare:v=>v>0&&v<=30||'validationFare',commission:v=>v>=10&&v<=20||'validationCommission',rideGrowth:v=>v>=-90&&v<=200||'validationGrowth',marketingBudget:v=>v>=0||'validationMarketing',initialInvestment:v=>v>=0||'validationInvestment',operatingExpenses:v=>v>=0||'validationExpenses'};function validateAssumptions(a){const errors={};Object.keys(rules).forEach(k=>{const val=Number(a[k]);const res=rules[k](val);if(res!==true||!Number.isFinite(val))errors[k]=Localization.t(res===true?'validationFare':res)});return{valid:Object.keys(errors).length===0,errors}}return{validateAssumptions}})();
